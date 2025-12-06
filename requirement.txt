@@ -1,0 +1,17 @@
+asgiref==3.11.0
+certifi==2025.11.12
+cffi==2.0.0
+charset-normalizer==3.4.4
+cryptography==41.0.7
+Django==4.2.11
+idna==3.11
+mysqlclient==2.1.1
+pillow==10.2.0
+pycparser==2.23
+PyPDF2==3.0.1
+reportlab==3.6.12
+requests==2.31.0
+sqlparse==0.5.4
+typing_extensions==4.15.0
+tzdata==2025.2
+urllib3==2.5.0

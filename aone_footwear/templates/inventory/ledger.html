@@ -1,0 +1,119 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+{% block content %}
+<h3>Stock Ledger / Inventory Summary</h3>
+
+<!-- Filters: GET form so selecting values can be applied server-side -->
+<form id="ledger_filters" method="get" class="row mb-3">
+    <div class="col-md-3">
+        <label>Brand</label>
+        <select id="led_brand" name="brand" class="form-select">
+            <option value="">Brand</option>
+            {% for b in brands %}
+                <option value="{{ b.id }}" {% if request.GET.brand == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label>Category</label>
+        <select id="led_category" name="category" class="form-select">
+            <option value="">Category</option>
+            {% if categories %}
+                {% for c in categories %}
+                    <option value="{{ c.id }}" {% if request.GET.category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label>Section</label>
+        <select id="led_section" name="section" class="form-select">
+            <option value="">Section</option>
+            {% if sections %}
+                {% for s in sections %}
+                    <option value="{{ s.id }}" {% if request.GET.section == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label>Size</label>
+        <select id="led_size" name="size" class="form-select">
+            <option value="">Size</option>
+            {% if sizes %}
+                {% for sz in sizes %}
+                    <option value="{{ sz.id }}" {% if request.GET.size == sz.id|stringformat:"s" %}selected{% endif %}>{{ sz.value }}</option>
+                {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label>Party / Supplier</label>
+        <select id="led_supplier" name="supplier" class="form-select">
+            <option value="">Supplier</option>
+            {% for sup in suppliers %}
+                <option value="{{ sup.id }}" {% if request.GET.supplier == sup.id|stringformat:"s" %}selected{% endif %}>{{ sup.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- small gap and filter button
+    <div class="col-12 mt-2 d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">Filter</button>
+    </div>-->
+</form>
+
+<div class="card p-3">
+    <table class="table table-sm">
+        <thead class="table-dark">
+        <tr>
+            <th>Brand</th><th>Category</th><th>Section</th><th>Size</th>
+            <th>Current Stock</th><th>Valuation (MRP)</th><th>Party / Supplier</th><th>Bill No</th>
+        </tr>
+        </thead>
+        <tbody>
+
+        {% for s in stocks %}
+            <tr {% if s.quantity <= 5 %}class="table-danger"{% endif %}>
+                <td>{{ s.product.brand.name }}</td>
+                <td>{{ s.product.category.name }}</td>
+                <td>{{ s.product.section.name }}</td>
+                <td>{{ s.product.size.value }}</td>
+                <td>{{ s.quantity }}</td>
+                <td>
+                    {% if s.valuation is not None %}
+                        ₹ {{ s.valuation|floatformat:2 }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ s.supplier_name|default:"-" }}</td>
+                <td>{{ s.bill_number|default:"-" }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="8">No stock.</td></tr>
+        {% endfor %}
+        </tbody>
+
+        <tfoot>
+            <tr class="table-secondary">
+                <th colspan="4" class="text-end">Totals</th>
+                <th>{{ totals.total_qty|default:0 }}</th>
+                <th>₹ {{ totals.total_valuation|floatformat:2 }}</th>
+                <th colspan="2"></th>
+            </tr>
+        </tfoot>
+    </table>
+    <small class="text-muted">
+        Low stock items (&lt;= 5 qty) are highlighted in red.
+    </small>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'inventory/js/ledger.js' %}"></script>
+{% endblock %}

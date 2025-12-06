@@ -1,0 +1,4 @@
+/* inventory/static/inventory/css/styles.css */
+.sidebar .nav-link.active {
+    background:#0d6efd;
+}

@@ -1,0 +1,188 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+{% block content %}
+
+<h3 class="mb-3">Stock Purchase Entry</h3>
+
+<div class="row">
+    <!-- LEFT PANEL -->
+    <div class="col-md-5">
+        <div class="card p-3">
+            <h5>Select Product</h5>
+
+            <!-- BRAND -->
+            <div class="mb-2">
+                <label>Brand</label>
+                <select id="pur_brand" class="form-select">
+                    <option value="">Select Brand</option>
+                    {% for b in brands %}
+                        <option value="{{ b.id }}">{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- CATEGORY (independent) -->
+            <div class="mb-2">
+                <label>Category</label>
+                <select id="pur_category" class="form-select">
+                    <option value="">Select Category</option>
+                    {% for c in categories %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- SECTION (independent) -->
+            <div class="mb-2">
+                <label>Section</label>
+                <select id="pur_section" class="form-select">
+                    <option value="">Select Section</option>
+                    {% for s in sections %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- SIZE (independent) -->
+            <div class="mb-2">
+                <label>Size</label>
+                <select id="pur_size" class="form-select">
+                    <option value="">Select Size</option>
+                    {% for sz in sizes %}
+                        <option value="{{ sz.id }}">{{ sz.value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <hr>
+
+            <!-- PRICE PANEL -->
+            <div class="row">
+                <div class="col-md-4 mb-2">
+                    <label>MRP</label>
+                    <input type="number" id="pur_mrp" class="form-control"/>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label>Billing Price</label>
+                    <input type="number" id="pur_price" class="form-control"/>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label>GST %</label>
+                    <input type="number" id="pur_gst" class="form-control" value="0"/>
+                </div>
+            </div>
+
+            <!-- DISCOUNT PANEL -->
+            <div class="row">
+                <div class="col-md-4 mb-2">
+                    <label>Disc %</label>
+                    <input type="number" id="pur_disc_percent" class="form-control"/>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label>Disc (Rs)</label>
+                    <input type="number" id="pur_disc_rs" class="form-control"/>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label>Qty</label>
+                    <input type="number" id="pur_qty" class="form-control" value="1"/>
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <label>MSP (Auto)</label>
+                <input type="number" id="pur_msp" class="form-control" readonly/>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button class="btn btn-success" id="btn_add_for_billing">
+                    + Add Item
+                </button>
+                <button class="btn btn-secondary d-none" id="btn_cancel_edit">
+                    Cancel Edit
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="col-md-7">
+        <form method="post" id="purchase_form">
+            {% csrf_token %}
+
+            <div class="card p-3 mb-3">
+                <h5>Purchase Bill Details</h5>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label>Supplier</label>
+                        {{ form.supplier }}
+                    </div>
+                    <div class="col-md-3">
+                        <label>Bill No</label>
+                        {{ form.bill_number }}
+                    </div>
+                    <div class="col-md-3">
+                        <label>Bill Date</label>
+                        {{ form.bill_date }}
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <label>Payment Mode</label>
+                    {{ form.payment_mode }}
+                </div>
+            </div>
+
+            <!-- PURCHASE ITEMS TABLE -->
+            <div class="card mb-3">
+                <div class="card-header">Purchase Items</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="purchase_items_table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Brand</th>
+                                <th>Category</th>
+                                <th>Section</th>
+                                <th>Size</th>
+                                <th>MRP</th>
+                                <th>Price</th>
+                                <th>Disc (Rs)</th>
+                                <th>Disc (%)</th>
+                                <th>GST</th>
+                                <th>Qty</th>
+                                <th>MSP</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="card-footer">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Total Items:</strong> <span id="tot_items">0</span>
+                            &nbsp; | &nbsp;
+                            <strong>Total Qty:</strong> <span id="tot_qty">0</span>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <strong>Approx Amount:</strong> ₹<span id="tot_amount">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <input type="hidden" name="items_json" id="items_json"/>
+
+            <button class="btn btn-primary w-100" type="submit">Submit Purchase</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'inventory/js/purchase.js' %}?v=A2"></script>
+{% endblock %}

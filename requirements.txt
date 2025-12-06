@@ -1,0 +1,8 @@
+Django==4.2.11
+mysqlclient==2.1.1
+reportlab==3.6.12
+cryptography==41.0.7
+Pillow==10.2.0
+requests==2.31.0
+PyPDF2==3.0.1
+tzdata

@@ -1,0 +1,198 @@
+ 
+{% extends 'inventory/base.html' %}
+{% load static %}
+{% block content %}
+<h3>Billing / POS</h3>
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card p-3 mb-3">
+            <h6 class="mb-3">Select Product</h6>
+
+            <!-- Cascading dropdowns -->
+            <div class="mb-2">
+                <label>Brand</label>
+                <select id="bill_brand" class="form-select">
+                    <option value="">Select Brand</option>
+                    {% for b in brands %}
+                        <option value="{{ b.id }}">{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label>Category</label>
+                <select id="bill_category" class="form-select">
+                    <option value="">Select Category</option>
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label>Section</label>
+                <select id="bill_section" class="form-select">
+                    <option value="">Select Section</option>
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label>Size</label>
+                <select id="bill_size" class="form-select">
+                    <option value="">Select Size</option>
+                </select>
+            </div>
+
+            <div class="mb-2 small text-muted">
+                Product stock: <span id="bill_stock_qty">0</span>
+            </div>
+
+            <div class="mb-2">
+                <label>MRP</label>
+                <select id="bill_mrp" class="form-select">
+                    <option value="">Select MRP</option>
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label>Qty</label>
+                <input id="bill_qty" type="number" value="1" class="form-control">
+            </div>
+
+            <div class="mb-2">
+                <label>Default Discount (%)</label>
+                <input id="bill_default_disc" class="form-control" readonly>
+            </div>
+
+            <div class="mb-2">
+                <label>Manual Discount (%)</label>
+                <input id="bill_manual_disc" class="form-control" value="0">
+            </div>
+
+            <div class="mb-2">
+                <label>Selling Price</label>
+                <input id="bill_selling_price" class="form-control" readonly>
+            </div>
+
+            <button class="btn btn-success w-100 mt-2" id="btn_add_to_bill">
+                Add to Bill
+            </button>
+        </div>
+    </div>
+
+    <!-- Pre-bill + totals -->
+    <div class="col-md-7">
+        <form method="post" id="billing_form">
+            {% csrf_token %}
+            {{ bill_form.as_p }}
+
+            <div class="card mb-3">
+                <div class="card-header">Bill Items</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="bill_items_table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Brand</th>
+                                <th>Category</th>
+                                <th>Section</th>
+                                <th>Size</th>
+                                <th>Qty</th>
+                                <th>MRP</th>
+                                <th>Price</th>
+                                <th>Disc</th>
+                                <th>GST</th>
+                                <th>Final</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================= TOTALS SECTION ================= -->
+<div class="card p-3 mt-3">
+    <div class="row mt-2">
+        <div class="col-md-4">
+            <label>Total Qty</label>
+            <input type="text" id="totalQty" class="form-control" readonly>
+        </div>
+        <div class="col-md-4">
+            <label>Subtotal</label>
+            <input type="text" id="subtotal" class="form-control" readonly>
+        </div>
+        <div class="col-md-4">
+            <label>Total GST</label>
+            <input type="text" id="totalGst" class="form-control" readonly>
+        </div>
+    </div>
+
+    <!-- GST SPLIT -->
+    <div class="mt-3 small">
+        <strong>GST Split:</strong><br>
+        CGST: <span id="cgstSplit">0</span><br>
+        SGST: <span id="sgstSplit">0</span>
+    </div>
+
+    <hr>
+
+    <!-- CUSTOMER DETAILS -->
+    <h6><strong>Customer Details</strong></h6>
+
+    <div class="row mt-2">
+        <div class="col-md-6">
+            <label>Customer Name</label>
+            <input type="text" class="form-control" name="customer_name">
+        </div>
+        <div class="col-md-6">
+            <label>Mobile</label>
+            <input type="text" class="form-control" name="customer_mobile">
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- PAYMENT MODE -->
+    <h6><strong>Payment Mode</strong></h6>
+
+    <div class="d-flex gap-3 mt-2">
+
+        <label class="btn btn-outline-primary">
+            <input type="radio" name="payment_type" value="CASH" checked>
+            <span class="ms-1">💵 CASH</span>
+        </label>
+
+        <label class="btn btn-outline-primary">
+            <input type="radio" name="payment_type" value="UPI">
+            <span class="ms-1">🧾 UPI</span>
+        </label>
+
+        <label class="btn btn-outline-primary">
+            <input type="radio" name="payment_type" value="CARD">
+            <span class="ms-1">💳 CARD</span>
+        </label>
+
+    </div>
+
+    <hr>
+
+    <!-- BUTTONS -->
+    <div class="d-flex justify-content-between mt-3">
+        <button class="btn btn-primary" type="submit">Submit Bill</button>
+
+        <button class="btn btn-secondary" id="printBtn" type="button">
+            Print
+        </button>
+    </div>
+
+</div>
+
+
+            <!-- hidden field used to send items JSON -->
+            <input type="hidden" name="items_json" id="items_json">
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'inventory/js/billing.js' %}?v=2"></script>
+{% endblock %}
