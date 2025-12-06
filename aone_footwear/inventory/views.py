@@ -1,7 +1,12 @@
 # inventory/views.py
-from django.contrib import messages
+from django.http import HttpResponse
+from django.utils import timezone
+from datetime import datetime, timedelta, date
+from django.db.models import Sum, F, Q
+import csv
+import json
+from django.contrib import (messages)
 from django.contrib.auth import login, logout
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.db import transaction
@@ -28,7 +33,7 @@ def user_login(request):
     if request.method == 'POST' and form.is_valid():
         user = form.get_user()
         login(request, user)
-        return redirect('billing')
+        return redirect('sales_dashboard')
     return render(request, 'inventory/login.html', {'form': form})
 
 
