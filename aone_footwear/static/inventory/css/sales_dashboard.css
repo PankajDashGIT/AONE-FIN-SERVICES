@@ -53,3 +53,27 @@
 .kpi-yellow {
     background: linear-gradient(135deg, #ca8a04, #facc15) !important;
 }
+
+/* PAYMENT MODES */
+.card-header.payment-header {
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6) !important;
+    color: #fff !important;
+}
+
+/* BEST SELLING ARTICLE */
+.card-header.article-header {
+    background: linear-gradient(135deg, #92400e, #f59e0b) !important;
+    color: #fff !important;
+}
+
+/* SALES TREND */
+.card-header.trend-header {
+    background: linear-gradient(135deg, #0f766e, #14b8a6) !important;
+    color: #fff !important;
+}
+
+/* PAYMENT PIE */
+.card-header.payment-pie-header {
+    background: linear-gradient(135deg, #1e293b, #475569) !important;
+    color: #fff !important;
+}
