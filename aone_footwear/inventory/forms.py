@@ -5,6 +5,28 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from .models import PurchaseBill, SalesBill, Customer, Supplier
 from django.contrib.auth.decorators import login_required
+from django import forms
+from .models import Brand, Category, Section, Size
+
+class BrandForm(forms.ModelForm):
+    class Meta:
+        model = Brand
+        fields = ['name']
+
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = ['brand', 'name']
+
+class SectionForm(forms.ModelForm):
+    class Meta:
+        model = Section
+        fields = ['category', 'name']
+
+class SizeForm(forms.ModelForm):
+    class Meta:
+        model = Size
+        fields = ['section', 'value']
 
 
 class LoginForm(AuthenticationForm):

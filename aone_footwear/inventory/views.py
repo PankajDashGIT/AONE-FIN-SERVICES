@@ -1,24 +1,22 @@
 # inventory/views.py
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
-from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
-from django.db.models.functions import Coalesce
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
+from django.shortcuts import render, redirect
 from django.db import transaction
-from .forms import LoginForm, PurchaseBillForm, SalesBillForm, CustomerForm
-from .models import (
-    Brand, Category, Section, Size,
-    Product, Stock, PurchaseBill, PurchaseItem,
-    SalesBill, SalesItem, Customer, Supplier
-)
+from .forms import LoginForm, PurchaseBillForm, SalesBillForm, CustomerForm, BrandForm, CategoryForm, SectionForm, SizeForm
+from .models import (Brand, Category, Section, Size, Product, Stock, PurchaseItem, SalesBill, SalesItem, Supplier)
 from .forms import SupplierForm
-import io, json
+import io
 from django.http import FileResponse, Http404
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from django.contrib.auth.decorators import login_required
+from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
+from django.db.models.functions import Coalesce
+
 
 # ---------- Auth ----------
 
@@ -53,27 +51,10 @@ def supplier_add(request):
     return render(request, "inventory/supplier_add.html", {"form": form})
 
 
-
 # ---------- Stock Purchase ----------
 # updates only to purchase_view context to include categories/sections/sizes
-from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
-from django.db import transaction
-from .forms import LoginForm, PurchaseBillForm, SalesBillForm, CustomerForm
-from .models import (
-    Brand, Category, Section, Size,
-    Product, Stock, PurchaseBill, PurchaseItem,
-    SalesBill, SalesItem, Customer, Supplier
-)
-from .forms import SupplierForm
-import io
-from django.http import FileResponse, Http404
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
+
+
 
 # ... rest of file unchanged above purchase_view ...
 
@@ -81,17 +62,13 @@ from reportlab.lib.units import mm
 @login_required
 @transaction.atomic
 def purchase_view(request):
-
     form = PurchaseBillForm(request.POST or None)
 
     if request.method == "POST":
 
         # Validate Bill Form
         if not form.is_valid():
-            return JsonResponse({
-                "error": "Invalid bill form",
-                "details": form.errors
-            }, status=400)
+            return JsonResponse({"error": "Invalid bill form", "details": form.errors}, status=400)
 
         # Items JSON
         items_json = request.POST.get("items_json")
@@ -110,15 +87,12 @@ def purchase_view(request):
         # Compute totals
         total_qty = sum([int(i["qty"]) for i in items])
         total_discount = sum([float(i.get("discount_rs") or 0) for i in items])
-        total_gst = sum([
-            ((float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100)
-            for i in items
-        ])
-        total_amount = sum([
-            (float(i.get("price") or 0) * int(i.get("qty") or 0)) +
-            ((float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100)
-            for i in items
-        ])
+        total_gst = sum(
+            [((float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100) for i in
+                items])
+        total_amount = sum([(float(i.get("price") or 0) * int(i.get("qty") or 0)) + (
+                    (float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100) for
+            i in items])
 
         bill.total_qty = total_qty
         bill.total_discount = total_discount
@@ -137,18 +111,10 @@ def purchase_view(request):
 
         # Save items & update stock
         for item in items:
-
             # Fetch or create product
-            product, created = Product.objects.get_or_create(
-                brand_id=item["brand_id"],
-                category_id=item["category_id"],
-                section_id=item["section_id"],
-                size_id=item["size_id"],
-                defaults={
-                    "mrp": item["mrp"],
-                    "gst_percent": item.get("gst_percent", 0)
-                }
-            )
+            product, created = Product.objects.get_or_create(brand_id=item["brand_id"], category_id=item["category_id"],
+                section_id=item["section_id"], size_id=item["size_id"],
+                defaults={"mrp": item["mrp"], "gst_percent": item.get("gst_percent", 0)})
 
             # Always update MRP & GST
             product.mrp = item["mrp"]
@@ -166,19 +132,9 @@ def purchase_view(request):
             gst_amount = ((billing_price * qty) * gst_percent) / 100
             line_total = (billing_price * qty) + gst_amount
 
-            PurchaseItem.objects.create(
-                purchase=bill,
-                product=product,
-                quantity=qty,
-                mrp=mrp,
-                billing_price=billing_price,
-                discount_percent=disc_percent,
-                discount_amount=disc_amount,
-                gst_percent=gst_percent,
-                gst_amount=gst_amount,
-                line_total=line_total,
-                msp=msp,
-            )
+            PurchaseItem.objects.create(purchase=bill, product=product, quantity=qty, mrp=mrp,
+                billing_price=billing_price, discount_percent=disc_percent, discount_amount=disc_amount,
+                gst_percent=gst_percent, gst_amount=gst_amount, line_total=line_total, msp=msp, )
 
             # Stock update
             stock, _ = Stock.objects.get_or_create(product=product)
@@ -189,15 +145,9 @@ def purchase_view(request):
         return redirect("ledger")
 
     # GET view
-    context = {
-        "form": form,
-        "brands": Brand.objects.all(),
-        "suppliers": Supplier.objects.all(),
+    context = {"form": form, "brands": Brand.objects.all(), "suppliers": Supplier.objects.all(),
         # Populate the independent dropdowns with all choices (no cascading)
-        "categories": Category.objects.all(),
-        "sections": Section.objects.all(),
-        "sizes": Size.objects.all(),
-    }
+        "categories": Category.objects.all(), "sections": Section.objects.all(), "sizes": Size.objects.all(), }
     return render(request, "inventory/purchase.html", context)
 
 
@@ -268,10 +218,8 @@ def billing_view(request):
             # -----------------------------------------
             if qty > stock.quantity:
                 transaction.set_rollback(True)
-                return JsonResponse({
-                    "error": f"Not enough stock for {product}. "
-                             f"Available: {stock.quantity}, Requested: {qty}"
-                }, status=400)
+                return JsonResponse({"error": f"Not enough stock for {product}. "
+                                              f"Available: {stock.quantity}, Requested: {qty}"}, status=400)
 
             # -----------------------------------------
             # AUTO STOCK REDUCE
@@ -280,26 +228,15 @@ def billing_view(request):
             stock.save()
 
             # Create SalesItem
-            SalesItem.objects.create(
-                sales_bill=sales_bill,
-                product=product,
-                quantity=qty,
-                mrp=mrp,
-                selling_price=final_price,
-                gst_percent=gst_percent,
-            )
+            SalesItem.objects.create(sales_bill=sales_bill, product=product, quantity=qty, mrp=mrp,
+                selling_price=final_price, gst_percent=gst_percent, )
 
         # After all items processed, return invoice PDF
         return generate_invoice_pdf(request, sales_bill.id)
 
     # GET request → display billing page
-    context = {
-        'bill_form': bill_form,
-        'customer_form': customer_form,
-        'brands': Brand.objects.all(),
-    }
+    context = {'bill_form': bill_form, 'customer_form': customer_form, 'brands': Brand.objects.all(), }
     return render(request, 'inventory/billing.html', context)
-
 
 
 def api_product_info(request):
@@ -313,10 +250,7 @@ def api_product_info(request):
     except Stock.DoesNotExist:
         return JsonResponse({'error': 'Stock not found'}, status=404)
 
-    data = {
-        'mrp': product.mrp,
-        'stock_qty': stock.quantity,
-    }
+    data = {'mrp': product.mrp, 'stock_qty': stock.quantity, }
     return JsonResponse(data)
 
 
@@ -347,7 +281,7 @@ def generate_invoice_pdf(request, bill_id):
     if invoice_format == "B":
         # Thermal width = 80mm, height auto (use long height)
         page_width = 80 * mm
-        page_height = 500 * mm      # long height scroll
+        page_height = 500 * mm  # long height scroll
         pagesize = (page_width, page_height)
     else:
         # A4 Portrait default
@@ -454,13 +388,8 @@ def generate_invoice_pdf(request, bill_id):
 
 @login_required
 def ledger_view(request):
-    qs = Stock.objects.select_related(
-        'product',
-        'product__brand',
-        'product__category',
-        'product__section',
-        'product__size'
-    ).all()
+    qs = Stock.objects.select_related('product', 'product__brand', 'product__category', 'product__section',
+        'product__size').all()
 
     # Filters from GET
     brand_id = request.GET.get('brand')
@@ -483,31 +412,24 @@ def ledger_view(request):
         qs = qs.filter(product__purchaseitem__purchase__supplier_id=supplier_id).distinct()
 
     # Create an expression for valuation = quantity * product.mrp with explicit output_field
-    valuation_expr = ExpressionWrapper(
-        F('quantity') * F('product__mrp'),
-        output_field=DecimalField(max_digits=14, decimal_places=2)
-    )
+    valuation_expr = ExpressionWrapper(F('quantity') * F('product__mrp'),
+        output_field=DecimalField(max_digits=14, decimal_places=2))
 
     # Annotate per-row valuation (uses Decimal output_field to avoid mixed types)
     qs = qs.annotate(
-        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2))
-    )
+        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2)))
 
     # Subquery: get the latest PurchaseItem for this product and fetch purchase.supplier.name and purchase.bill_number
     latest_pi = PurchaseItem.objects.filter(product=OuterRef('product')).order_by('-purchase__bill_date',
                                                                                   '-purchase__id')
 
-    qs = qs.annotate(
-        supplier_name=Subquery(latest_pi.values('purchase__supplier__name')[:1]),
-        bill_number=Subquery(latest_pi.values('purchase__bill_number')[:1])
-    )
+    qs = qs.annotate(supplier_name=Subquery(latest_pi.values('purchase__supplier__name')[:1]),
+        bill_number=Subquery(latest_pi.values('purchase__bill_number')[:1]))
 
     # Compute totals from the filtered queryset using the same valuation expression
-    totals = qs.aggregate(
-        total_qty=Coalesce(Sum('quantity'), Value(0)),
+    totals = qs.aggregate(total_qty=Coalesce(Sum('quantity'), Value(0)),
         total_valuation=Coalesce(Sum(valuation_expr), Value(0),
-                                 output_field=DecimalField(max_digits=18, decimal_places=2))
-    )
+                                 output_field=DecimalField(max_digits=18, decimal_places=2)))
 
     # Pass dropdown lists if you want server-side filled dependent selects
     brands = Brand.objects.all()
@@ -516,15 +438,8 @@ def ledger_view(request):
     sections = Section.objects.filter(category_id=category_id) if category_id else Section.objects.none()
     sizes = Size.objects.filter(section_id=section_id) if section_id else Size.objects.none()
 
-    context = {
-        'stocks': qs,
-        'brands': brands,
-        'suppliers': suppliers,
-        'categories': categories,
-        'sections': sections,
-        'sizes': sizes,
-        'totals': totals,
-    }
+    context = {'stocks': qs, 'brands': brands, 'suppliers': suppliers, 'categories': categories, 'sections': sections,
+        'sizes': sizes, 'totals': totals, }
     return render(request, 'inventory/ledger.html', context)
 
 
@@ -558,23 +473,82 @@ def api_product_info(request):
     section_id = request.GET.get('section_id')
     size_id = request.GET.get('size_id')
 
-    products = Product.objects.filter(
-        brand_id=brand_id,
-        category_id=category_id,
-        section_id=section_id,
-        size_id=size_id
-    )
+    products = Product.objects.filter(brand_id=brand_id, category_id=category_id, section_id=section_id,
+        size_id=size_id)
 
     # multi-MRP list + stock
     data = []
     for p in products:
         qty = getattr(p.stock, 'quantity', 0)
-        data.append({
-            'product_id': p.id,
-            'mrp': float(p.mrp),
-            'default_discount': float(p.default_discount_percent),
-            'gst_percent': float(p.gst_percent),
-            'stock_qty': qty,
-        })
+        data.append({'product_id': p.id, 'mrp': float(p.mrp), 'default_discount': float(p.default_discount_percent),
+            'gst_percent': float(p.gst_percent), 'stock_qty': qty, })
 
     return JsonResponse(data, safe=False)
+
+
+@login_required
+def master_brand_add(request):
+    form = BrandForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Brand added successfully!")
+            return redirect("brand_add")
+    return render(request, "inventory/master/brand_add.html", {"form": form})
+
+
+@login_required
+def master_category_add(request):
+    form = CategoryForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Category added successfully!")
+            return redirect("category_add")
+    return render(request, "inventory/master/category_add.html", {"form": form})
+
+
+@login_required
+def master_section_add(request):
+    form = SectionForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Section added successfully!")
+            return redirect("section_add")
+    return render(request, "inventory/master/section_add.html", {"form": form})
+
+
+@login_required
+def master_size_add(request):
+    form = SizeForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Size added successfully!")
+            return redirect("size_add")
+    return render(request, "inventory/master/size_add.html", {"form": form})
+
+@login_required
+def master_dashboard(request):
+    return render(request, "inventory/master/dashboard.html", {
+        "brands": Brand.objects.all(),
+    })
+
+@login_required
+def master_size_add(request):
+    if request.method == "POST":
+        section = Section.objects.get(id=request.POST.get("section"))
+
+        selected_sizes = request.POST.getlist("sizes")  # list: ["6","7","10","Free"]
+
+        for size_val in selected_sizes:
+            Size.objects.get_or_create(
+                section=section,
+                value=size_val
+            )
+
+        messages.success(request, "Sizes saved successfully!")
+        return redirect("master_dashboard")
+
+    return redirect("master_dashboard")
