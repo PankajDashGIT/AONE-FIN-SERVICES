@@ -1,0 +1,30 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+{% block content %}
+
+<h3>Add Supplier</h3>
+
+<div class="card p-3">
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label>Supplier Name</label>
+            {{ form.name }}
+        </div>
+
+        <div class="mb-3">
+            <label>Mobile No.</label>
+            {{ form.mobile }}
+        </div>
+
+        <div class="mb-3">
+            <label>Address</label>
+            {{ form.address }}
+        </div>
+
+        <button class="btn btn-primary">Save Supplier</button>
+    </form>
+</div>
+
+{% endblock %}
