@@ -552,3 +552,246 @@ def master_size_add(request):
         return redirect("master_dashboard")
 
     return redirect("master_dashboard")
+
+
+@login_required
+def sales_dashboard_view(request):
+    """Render the Sales Dashboard shell — data loaded via AJAX."""
+    return render(request, "inventory/sales_dashboard.html", {})
+
+
+@login_required
+def sales_dashboard_data(request):
+    """
+    AJAX endpoint that returns JSON for:
+    - KPIs
+    - payment summary
+    - best selling article
+    - sales table (paginated)
+    """
+    # --- Parse filters ---
+    start_str = request.GET.get("start_date")
+    end_str = request.GET.get("end_date")
+    search = request.GET.get("search", "").strip()
+    page = int(request.GET.get("page", 1))
+    page_size = int(request.GET.get("page_size", 10))
+
+    today = timezone.localdate()
+
+    # Default range: today
+    if start_str:
+        start_date = datetime.strptime(start_str, "%d-%m-%Y").date()
+    else:
+        start_date = today
+
+    if end_str:
+        end_date = datetime.strptime(end_str, "%d-%m-%Y").date()
+    else:
+        end_date = today
+
+    # Base bill queryset for filtered range
+    bills_qs = SalesBill.objects.filter(
+        bill_date__date__gte=start_date,
+        bill_date__date__lte=end_date
+    )
+
+    # --- KPIs ---
+
+    # Today's sales (all bills for today)
+    todays_bills = SalesBill.objects.filter(bill_date__date=today)
+    today_sales = todays_bills.aggregate(total=Sum("total_amount"))["total"] or 0
+
+    # Last 7 days sales (rolling)
+    seven_days_ago = today - timedelta(days=6)
+    last_7_qs = SalesBill.objects.filter(
+        bill_date__date__gte=seven_days_ago,
+        bill_date__date__lte=today
+    )
+    last_7_sales = last_7_qs.aggregate(total=Sum("total_amount"))["total"] or 0
+
+    # Total sales (filtered range)
+    total_sales = bills_qs.aggregate(total=Sum("total_amount"))["total"] or 0
+
+    # Total qty sold (filtered range — from items)
+    items_qs = SalesItem.objects.filter(
+        sales_bill__bill_date__date__gte=start_date,
+        sales_bill__bill_date__date__lte=end_date,
+    )
+    total_qty = items_qs.aggregate(total=Sum("quantity"))["total"] or 0
+
+    # --- Payment mode summary (filtered) ---
+    payments_raw = bills_qs.values("payment_mode").annotate(
+        amount=Sum("total_amount")
+    )
+
+    payments = []
+    for p in payments_raw:
+        payments.append({
+            "mode": p["payment_mode"],
+            "amount": float(p["amount"] or 0),
+        })
+
+    # --- Best selling article (by qty, filtered range) ---
+    best_selling = None
+    if items_qs.exists():
+        top_item = (
+            items_qs
+            .values("product")
+            .annotate(qty_sum=Sum("quantity"), amount_sum=Sum("line_total"))
+            .order_by("-qty_sum")
+            .first()
+        )
+        if top_item:
+            product = Product.objects.select_related(
+                "brand", "category", "section", "size"
+            ).get(id=top_item["product"])
+            best_selling = {
+                "name": f"{product.brand.name} / {product.category.name} / {product.section.name} / {product.size.value}",
+                "qty": int(top_item["qty_sum"] or 0),
+                "amount": float(top_item["amount_sum"] or 0),
+            }
+
+    # --- Table data (Sales items with bill info) ---
+    table_qs = (
+        SalesItem.objects.select_related(
+            "sales_bill",
+            "product__brand",
+            "product__category",
+            "product__section",
+            "product__size",
+        )
+        .filter(
+            sales_bill__bill_date__date__gte=start_date,
+            sales_bill__bill_date__date__lte=end_date,
+        )
+        .order_by("-sales_bill__bill_date", "-id")
+    )
+
+    if search:
+        table_qs = table_qs.filter(
+            Q(sales_bill__bill_number__icontains=search)
+            | Q(product__brand__name__icontains=search)
+            | Q(product__category__name__icontains=search)
+            | Q(product__section__name__icontains=search)
+            | Q(product__size__value__icontains=search)
+        )
+
+    total_rows = table_qs.count()
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+
+    rows = []
+    for item in table_qs[start_idx:end_idx]:
+        bill = item.sales_bill
+        product = item.product
+        line_amount = float(item.line_total or (item.quantity * item.selling_price))
+
+        rows.append({
+            "bill_no": bill.bill_number,
+            "date": bill.bill_date.strftime("%d-%m-%Y"),
+            "article": product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
+            "category": product.category.name,
+            "size": product.size.value,
+            "qty": item.quantity,
+            "amount": line_amount,
+            "payment": bill.get_payment_mode_display(),
+        })
+
+    total_pages = (total_rows + page_size - 1) // page_size if page_size else 1
+
+    data = {
+        "kpis": {
+            "today_sales": float(today_sales),
+            "last_7_sales": float(last_7_sales),
+            "total_sales": float(total_sales),
+            "total_qty": int(total_qty or 0),
+        },
+        "payments": payments,
+        "best_selling": best_selling,
+        "table": {
+            "rows": rows,
+            "page": page,
+            "page_size": page_size,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+        },
+        "meta": {
+            "start_date": start_date.strftime("%d-%m-%Y"),
+            "end_date": end_date.strftime("%d-%m-%Y"),
+        }
+    }
+
+    return JsonResponse(data)
+
+
+@login_required
+def export_sales_excel(request):
+    """
+    Export filtered sales (same filters as dashboard) to CSV (Excel-friendly).
+    URL: /sales/export/
+    """
+    start_str = request.GET.get("start_date")
+    end_str = request.GET.get("end_date")
+    search = request.GET.get("search", "").strip()
+
+    today = timezone.localdate()
+
+    if start_str:
+        start_date = datetime.strptime(start_str, "%d-%m-%Y").date()
+    else:
+        start_date = today
+
+    if end_str:
+        end_date = datetime.strptime(end_str, "%d-%m-%Y").date()
+    else:
+        end_date = today
+
+    qs = (
+        SalesItem.objects.select_related(
+            "sales_bill",
+            "product__brand",
+            "product__category",
+            "product__section",
+            "product__size",
+        )
+        .filter(
+            sales_bill__bill_date__date__gte=start_date,
+            sales_bill__bill_date__date__lte=end_date,
+        )
+        .order_by("-sales_bill__bill_date", "-id")
+    )
+
+    if search:
+        qs = qs.filter(
+            Q(sales_bill__bill_number__icontains=search)
+            | Q(product__brand__name__icontains=search)
+            | Q(product__category__name__icontains=search)
+            | Q(product__section__name__icontains=search)
+            | Q(product__size__value__icontains=search)
+        )
+
+    # CSV response
+    response = HttpResponse(content_type="text/csv")
+    filename = f"sales_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(["Bill No", "Date", "Article", "Category", "Size", "Qty", "Amount", "Payment"])
+
+    for item in qs:
+        bill = item.sales_bill
+        product = item.product
+        line_amount = float(item.line_total or (item.quantity * item.selling_price))
+
+        writer.writerow([
+            bill.bill_number,
+            bill.bill_date.strftime("%d-%m-%Y"),
+            product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
+            product.category.name,
+            product.size.value,
+            item.quantity,
+            f"{line_amount:.2f}",
+            bill.get_payment_mode_display(),
+        ])
+
+    return response
