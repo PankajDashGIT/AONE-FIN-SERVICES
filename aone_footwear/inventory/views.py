@@ -1,4 +1,5 @@
 # inventory/views.py
+from .models import PurchaseBill
 import csv
 import io
 import json
@@ -913,3 +914,19 @@ def terms_view(request):
 
 def contact_view(request):
     return render(request, "inventory/contact.html")
+
+
+@login_required
+def check_purchase_bill(request):
+    supplier_id = request.GET.get("supplier_id")
+    bill_number = request.GET.get("bill_number", "").strip()
+
+    if not supplier_id or not bill_number:
+        return JsonResponse({"exists": False})
+
+    exists = PurchaseBill.objects.filter(
+        supplier_id=supplier_id,
+        bill_number__iexact=bill_number
+    ).exists()
+
+    return JsonResponse({"exists": exists})

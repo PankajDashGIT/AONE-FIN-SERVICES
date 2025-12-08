@@ -46,6 +46,8 @@ urlpatterns = [
     path("master/category/add/", master_category_add, name="category_add"),
     path("master/section/add/", master_section_add, name="section_add"),
     path("master/size/add/", master_size_add, name="size_add"),
+    path("purchase/check-bill/", check_purchase_bill, name="check_purchase_bill"),
+
 
     # ------------------------------------------------
     # API ENDPOINTS

@@ -16,7 +16,7 @@
                 <select id="pur_brand" class="form-select">
                     <option value="">Select Brand</option>
                     {% for b in brands %}
-                        <option value="{{ b.id }}">{{ b.name }}</option>
+                    <option value="{{ b.id }}">{{ b.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -27,7 +27,7 @@
                 <select id="pur_category" class="form-select">
                     <option value="">Select Category</option>
                     {% for c in categories %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
+                    <option value="{{ c.id }}">{{ c.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -38,7 +38,7 @@
                 <select id="pur_section" class="form-select">
                     <option value="">Select Section</option>
                     {% for s in sections %}
-                        <option value="{{ s.id }}">{{ s.name }}</option>
+                    <option value="{{ s.id }}">{{ s.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -49,7 +49,7 @@
                 <select id="pur_size" class="form-select">
                     <option value="">Select Size</option>
                     {% for sz in sizes %}
-                        <option value="{{ sz.id }}">{{ sz.value }}</option>
+                    <option value="{{ sz.id }}">{{ sz.value }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -121,6 +121,9 @@
                     <div class="col-md-3">
                         <label>Bill No</label>
                         {{ form.bill_number }}
+
+                        <!-- LIVE BILL NUMBER VALIDATION MESSAGE -->
+                        <div id="bill_check_msg" class="small mt-1"></div>
                     </div>
                     <div class="col-md-3">
                         <label>Bill Date</label>
@@ -140,20 +143,20 @@
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0" id="purchase_items_table">
                         <thead class="table-dark">
-                            <tr>
-                                <th>Brand</th>
-                                <th>Category</th>
-                                <th>Section</th>
-                                <th>Size</th>
-                                <th>MRP</th>
-                                <th>Price</th>
-                                <th>Disc (Rs)</th>
-                                <th>Disc (%)</th>
-                                <th>GST</th>
-                                <th>Qty</th>
-                                <th>MSP</th>
-                                <th>Action</th>
-                            </tr>
+                        <tr>
+                            <th>Brand</th>
+                            <th>Category</th>
+                            <th>Section</th>
+                            <th>Size</th>
+                            <th>MRP</th>
+                            <th>Price</th>
+                            <th>Disc (Rs)</th>
+                            <th>Disc (%)</th>
+                            <th>GST</th>
+                            <th>Qty</th>
+                            <th>MSP</th>
+                            <th>Action</th>
+                        </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
@@ -186,3 +189,4 @@
 {% block extra_js %}
 <script src="{% static 'inventory/js/purchase.js' %}?v=A2"></script>
 {% endblock %}
+

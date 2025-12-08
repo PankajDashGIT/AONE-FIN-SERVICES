@@ -290,3 +290,41 @@ $(function () {
     renderPurchaseTable();
     renderTotals();
 });
+
+$(document).ready(function () {
+
+    function checkBillExists() {
+        let supplierId = $("#id_supplier").val();
+        let billNo = $("#id_bill_number").val().trim();
+
+        if (!supplierId || !billNo) {
+            $("#bill_check_msg").html("");
+            return;
+        }
+
+        $.ajax({
+            url: "/purchase/check-bill/",
+            method: "GET",
+            data: {
+                supplier_id: supplierId,
+                bill_number: billNo
+            },
+            success: function (resp) {
+                if (resp.exists) {
+                    $("#bill_check_msg").html(
+                        "<span style='color:red; font-weight:bold;'>❌ This bill already exists for this supplier.</span>"
+                    );
+                } else {
+                    $("#bill_check_msg").html(
+                        "<span style='color:green; font-weight:bold;'>✅ Bill number is available.</span>"
+                    );
+                }
+            }
+        });
+    }
+
+    // Trigger validation when supplier changes or bill number typed
+    $("#id_supplier").on("change", checkBillExists);
+    $("#id_bill_number").on("keyup change", checkBillExists);
+
+});
