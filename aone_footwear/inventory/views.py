@@ -1,30 +1,84 @@
 # inventory/views.py
-from django.http import HttpResponse
-from django.utils import timezone
-from datetime import datetime, timedelta, date
-from django.db.models import Sum, F, Q
 import csv
+import io
 import json
+from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.contrib import (messages)
 from django.contrib.auth import login, logout
-from django.http import JsonResponse
-from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from .forms import LoginForm, PurchaseBillForm, SalesBillForm, CustomerForm, BrandForm, CategoryForm, SectionForm, SizeForm
-from .models import (Brand, Category, Section, Size, Product, Stock, PurchaseItem, SalesBill, SalesItem, Supplier)
-from .forms import SupplierForm
-import io
+from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
+from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.http import FileResponse, Http404
-from reportlab.pdfgen import canvas
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils import timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
-from django.contrib.auth.decorators import login_required
-from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
-from django.db.models.functions import Coalesce
+from reportlab.pdfgen import canvas
+
+from .forms import LoginForm, PurchaseBillForm, BrandForm, CategoryForm, SectionForm, SizeForm
+from .forms import SupplierForm, SalesBillForm
+from .models import (Brand, Category, Section, Size, PurchaseItem, Supplier)
+
+# Ensure WEASYPRINT_AVAILABLE is always defined to avoid unresolved reference warnings.
+WEASYPRINT_AVAILABLE = False
+try:
+    # Importing WeasyPrint may raise ImportError or other exceptions if dependencies are missing.
+    from weasyprint import HTML  # type: ignore
+
+    WEASYPRINT_AVAILABLE = True
+except Exception:
+    WEASYPRINT_AVAILABLE = False
+
+from .models import Product, SalesBill, SalesItem, Stock, Customer
+
+
+# Helper to convert floats/strings to Decimal with 2 dp
+def to_decimal(value):
+    try:
+        # Accept strings, floats or Decimals
+        return Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    except Exception:
+        return Decimal('0.00')
+
+
+@login_required
+def invoice_print(request, pk):
+    """
+    Invoice print/view endpoint.
+    - If ?download=1 present, server generates a PDF (WeasyPrint) and returns it as attachment.
+    - Else it renders the invoice_print.html template (same as current).
+    """
+    sale = get_object_or_404(SalesBill.objects.select_related('customer').prefetch_related('items__product'), pk=pk)
+
+    # If download requested, generate PDF server-side
+    if request.GET.get('download') in ['1', 'true', 'yes']:
+        if not WEASYPRINT_AVAILABLE:
+            return HttpResponse("Server-side PDF generation is not available. Install WeasyPrint.", status=500)
+
+        # Render template to HTML string
+        html_string = render_to_string('inventory/invoice_print.html', {'sale': sale})
+        # Use absolute base URL so resources (images/css) can be loaded by WeasyPrint
+        base_url = request.build_absolute_uri('/')
+
+        # Generate PDF bytes
+        pdf_file = HTML(string=html_string, base_url=base_url).write_pdf()
+
+        # Respond with attachment
+        filename = f"invoice-{sale.bill_number or sale.pk}.pdf"
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
 
 # ---------- Auth ----------
-
 def user_login(request):
     if request.user.is_authenticated:
         return redirect('billing')
@@ -60,7 +114,6 @@ def supplier_add(request):
 # updates only to purchase_view context to include categories/sections/sizes
 
 
-
 # ... rest of file unchanged above purchase_view ...
 
 # ---------- Stock Purchase ----------
@@ -94,10 +147,10 @@ def purchase_view(request):
         total_discount = sum([float(i.get("discount_rs") or 0) for i in items])
         total_gst = sum(
             [((float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100) for i in
-                items])
+             items])
         total_amount = sum([(float(i.get("price") or 0) * int(i.get("qty") or 0)) + (
-                    (float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100) for
-            i in items])
+                (float(i.get("price") or 0) * int(i.get("qty") or 0)) * float(i.get("gst_percent") or 0) / 100) for i in
+                            items])
 
         bill.total_qty = total_qty
         bill.total_discount = total_discount
@@ -118,8 +171,9 @@ def purchase_view(request):
         for item in items:
             # Fetch or create product
             product, created = Product.objects.get_or_create(brand_id=item["brand_id"], category_id=item["category_id"],
-                section_id=item["section_id"], size_id=item["size_id"],
-                defaults={"mrp": item["mrp"], "gst_percent": item.get("gst_percent", 0)})
+                                                             section_id=item["section_id"], size_id=item["size_id"],
+                                                             defaults={"mrp": item["mrp"],
+                                                                       "gst_percent": item.get("gst_percent", 0)})
 
             # Always update MRP & GST
             product.mrp = item["mrp"]
@@ -138,8 +192,9 @@ def purchase_view(request):
             line_total = (billing_price * qty) + gst_amount
 
             PurchaseItem.objects.create(purchase=bill, product=product, quantity=qty, mrp=mrp,
-                billing_price=billing_price, discount_percent=disc_percent, discount_amount=disc_amount,
-                gst_percent=gst_percent, gst_amount=gst_amount, line_total=line_total, msp=msp, )
+                                        billing_price=billing_price, discount_percent=disc_percent,
+                                        discount_amount=disc_amount, gst_percent=gst_percent, gst_amount=gst_amount,
+                                        line_total=line_total, msp=msp, )
 
             # Stock update
             stock, _ = Stock.objects.get_or_create(product=product)
@@ -151,97 +206,203 @@ def purchase_view(request):
 
     # GET view
     context = {"form": form, "brands": Brand.objects.all(), "suppliers": Supplier.objects.all(),
-        # Populate the independent dropdowns with all choices (no cascading)
-        "categories": Category.objects.all(), "sections": Section.objects.all(), "sizes": Size.objects.all(), }
+               # Populate the independent dropdowns with all choices (no cascading)
+               "categories": Category.objects.all(), "sections": Section.objects.all(), "sizes": Size.objects.all(), }
     return render(request, "inventory/purchase.html", context)
 
 
 # ---------- Billing / POS ----------
 
 @login_required
+@login_required
 @transaction.atomic
 def billing_view(request):
-    bill_form = SalesBillForm(request.POST or None)
-    customer_form = CustomerForm(request.POST or None, prefix='cust')
+    """
+    GET: Render billing page.
+    POST: Validate items (read-only), then write SalesBill, SalesItems and update Stock within the same transaction.
+    Uses decorator @transaction.atomic so the entire view is transactional.
+    Validation failures return JSON (or render) before any writes occur.
+    """
+    # --- GET: render billing page ---
+    if request.method == 'GET':
+        brands = Brand.objects.all().order_by('name')
+        bill_form = SalesBillForm()
+        data = {'stock_qty': 0}
+        return render(request, 'inventory/billing.html', {
+            'brands': brands,
+            'bill_form': bill_form,
+            'data': data
+        })
 
-    if request.method == 'POST':
+    # --- Only POST beyond this point ---
+    if request.method != 'POST':
+        return HttpResponseBadRequest("Unsupported HTTP method.")
 
-        # 1) Validate sales bill form
-        if not bill_form.is_valid():
-            return JsonResponse({"error": "Invalid bill form"}, status=400)
+    # Parse items_json
+    items_json = request.POST.get('items_json') or request.POST.get('items') or None
+    if not items_json:
+        return JsonResponse({'success': False, 'error': 'No items supplied.'}, status=400)
 
-        # 2) Parse items JSON from hidden field
-        items_json = request.POST.get("items_json")
-        if not items_json:
-            return JsonResponse({"error": "No bill items received"}, status=400)
-
-        import json
+    try:
         items = json.loads(items_json)
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'Invalid items_json.'}, status=400)
 
-        if len(items) == 0:
-            return JsonResponse({"error": "Bill cannot be empty"}, status=400)
+    if not isinstance(items, list) or len(items) == 0:
+        return JsonResponse({'success': False, 'error': 'At least one item required.'}, status=400)
 
-        # 3) Create SalesBill
-        sales_bill = bill_form.save(commit=False)
-        sales_bill.created_by = request.user
+    # Optionally resolve/create customer (lightweight)
+    customer = None
+    customer_name = request.POST.get('customer_name') or request.POST.get('customer')
+    customer_mobile = request.POST.get('customer_mobile')
+    if customer_name:
+        try:
+            if customer_mobile:
+                customer = Customer.objects.filter(name=customer_name, phone=customer_mobile).first()
+            if not customer:
+                # create a minimal customer record if not found
+                customer = Customer.objects.create(name=customer_name, phone=customer_mobile or '')
+        except Exception:
+            customer = None
 
-        # Customer (if credit)
-        if bill_form.cleaned_data['payment_mode'] == 'CREDIT':
-            if customer_form.is_valid():
-                customer = customer_form.save()
-                sales_bill.customer = customer
-            else:
-                return JsonResponse({"error": "Invalid customer form"}, status=400)
+    payment_mode = request.POST.get('payment_type') or request.POST.get('payment_mode') or 'CASH'
 
-        sales_bill.save()
+    # --- PRE-VALIDATION (reads only) ---
+    validated_items = []
+    for idx, it in enumerate(items):
+        try:
+            product_id = int(it.get('product_id') or it.get('product') or it.get('id'))
+            qty = int(it.get('qty', 0))
+            price_unit = to_decimal(it.get('price', 0))
+            gst_percent_input = it.get('gst_percent') if it.get('gst_percent') is not None else it.get('gst')
+        except Exception:
+            return JsonResponse({'success': False, 'error': f'Invalid data for item #{idx+1}.'}, status=400)
 
-        # 4) Process each item
-        for item in items:
+        if qty <= 0:
+            return JsonResponse({'success': False, 'error': f'Quantity must be positive for item #{idx+1}.'}, status=400)
 
-            product_id = item.get("product_id")
-            qty = int(item.get("qty", 0))
-            mrp = float(item.get("mrp", 0))
-            final_price = float(item.get("final_price", 0))
-            gst_percent = float(item.get("gst_percent", 0))
+        # Fetch product (read-only)
+        try:
+            product = Product.objects.select_related('stock').get(pk=product_id)
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'error': f'Product id {product_id} not found (item #{idx+1}).'}, status=400)
 
-            # Get product
-            try:
-                product = Product.objects.get(id=product_id)
-            except Product.DoesNotExist:
-                transaction.set_rollback(True)
-                return JsonResponse({"error": f"Product not found: {product_id}"}, status=400)
+        # Use DB MRP to validate discount limits
+        mrp_db = to_decimal(product.mrp)
+        gst_percent = to_decimal(gst_percent_input if gst_percent_input is not None else product.gst_percent)
 
-            # Get stock object
-            try:
-                stock = Stock.objects.get(product=product)
-            except Stock.DoesNotExist:
-                transaction.set_rollback(True)
-                return JsonResponse({"error": f"No stock available for product {product}"}, status=400)
+        # Pre-check stock availability (best effort)
+        try:
+            stock = product.stock
+            if stock.quantity < qty:
+                return JsonResponse({'success': False, 'error': f'Not enough stock for product {product}. Available {stock.quantity}.'}, status=400)
+        except Stock.DoesNotExist:
+            return JsonResponse({'success': False, 'error': f'No stock record for product {product}.'}, status=400)
 
-            # -----------------------------------------
-            # BACKEND STOCK VALIDATION (prevents oversell)
-            # -----------------------------------------
-            if qty > stock.quantity:
-                transaction.set_rollback(True)
-                return JsonResponse({"error": f"Not enough stock for {product}. "
-                                              f"Available: {stock.quantity}, Requested: {qty}"}, status=400)
+        # Validate manual discount: (mrp - price_unit) <= 15% MRP
+        discount_per_unit = (mrp_db - price_unit)
+        max_allowed = (mrp_db * Decimal('0.15')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if discount_per_unit > max_allowed:
+            return JsonResponse({'success': False,
+                                 'error': f'Manual discount on product {product} exceeds 15% of MRP (max ₹{max_allowed}).'}, status=400)
 
-            # -----------------------------------------
-            # AUTO STOCK REDUCE
-            # -----------------------------------------
+        validated_items.append({
+            'product': product,
+            'qty': qty,
+            'mrp': mrp_db,
+            'price_unit': price_unit,
+            'gst_percent': gst_percent
+        })
+
+    # --- ALL VALIDATED: perform writes (still inside @transaction.atomic) ---
+    bill_number = timezone.now().strftime('B%Y%m%d%H%M%S')
+    try:
+        # Create sales bill
+        sales_bill = SalesBill.objects.create(
+            bill_number=bill_number,
+            bill_date=timezone.now(),
+            customer=customer,
+            payment_mode=payment_mode,
+            total_qty=0,
+            total_amount=Decimal('0.00'),
+            total_discount=Decimal('0.00'),
+            total_gst=Decimal('0.00'),
+            cgst=Decimal('0.00'),
+            sgst=Decimal('0.00'),
+            created_by=request.user,
+        )
+
+        total_qty = 0
+        total_amount = Decimal('0.00')
+        total_gst = Decimal('0.00')
+        total_discount = Decimal('0.00')
+
+        # For each validated item, lock its stock row and update
+        for item in validated_items:
+            product = item['product']
+            qty = item['qty']
+            mrp = item['mrp']
+            price_unit = item['price_unit']
+            gst_percent = item['gst_percent']
+
+            # Lock stock row and re-check availability
+            stock = Stock.objects.select_for_update().get(product=product)
+            if stock.quantity < qty:
+                # Raising an exception will rollback the atomic transaction
+                raise ValueError(f'Not enough stock for product {product}. Available {stock.quantity}.')
+
+            discount_per_unit = (mrp - price_unit)
+            line_discount_amount = (discount_per_unit * qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+            line_gst_amount = (price_unit * qty * gst_percent / Decimal('100.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            line_total = (price_unit * qty + line_gst_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+            SalesItem.objects.create(
+                sales_bill=sales_bill,
+                product=product,
+                quantity=qty,
+                mrp=mrp,
+                selling_price=price_unit,
+                discount_percent=((discount_per_unit / mrp) * Decimal('100.00')).quantize(Decimal('0.01')) if mrp > 0 else Decimal('0.00'),
+                discount_amount=line_discount_amount,
+                gst_percent=gst_percent,
+                gst_amount=line_gst_amount,
+                line_total=line_total,
+            )
+
+            # Decrement stock and save
             stock.quantity -= qty
             stock.save()
 
-            # Create SalesItem
-            SalesItem.objects.create(sales_bill=sales_bill, product=product, quantity=qty, mrp=mrp,
-                selling_price=final_price, gst_percent=gst_percent, )
+            total_qty += qty
+            total_amount += line_total
+            total_gst += line_gst_amount
+            total_discount += line_discount_amount
 
-        # After all items processed, return invoice PDF
-        return generate_invoice_pdf(request, sales_bill.id)
+        # Finalize totals and save the sales bill
+        sales_bill.total_qty = total_qty
+        sales_bill.total_amount = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        sales_bill.total_gst = total_gst.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        sales_bill.total_discount = total_discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        sales_bill.cgst = (sales_bill.total_gst / Decimal('2.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        sales_bill.sgst = (sales_bill.total_gst / Decimal('2.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        sales_bill.save()
 
-    # GET request → display billing page
-    context = {'bill_form': bill_form, 'customer_form': customer_form, 'brands': Brand.objects.all(), }
-    return render(request, 'inventory/billing.html', context)
+    except ValueError as ve:
+        # A validation or stock re-check failed; rollback happens automatically because we're inside atomic()
+        return JsonResponse({'success': False, 'error': str(ve)}, status=400)
+    except Exception:
+        # Unexpected failure: rollback automatically
+        return JsonResponse({'success': False, 'error': 'Server error while creating bill.'}, status=500)
+
+    # Build invoice URL and respond (AJAX vs normal)
+    invoice_url = reverse('invoice-pdf', args=[sales_bill.pk])
+    invoice_url_with_download = invoice_url
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.META.get('HTTP_ACCEPT') == 'application/json'
+    if is_ajax:
+        return JsonResponse({'success': True, 'invoice_url': invoice_url_with_download})
+    else:
+        return HttpResponseRedirect(invoice_url_with_download)
 
 
 def api_product_info(request):
@@ -263,41 +424,16 @@ def api_product_info(request):
 
 @login_required
 def generate_invoice_pdf(request, bill_id):
-    """
-    Generate a PDF invoice for the given bill_id.
-    Works for both internal calls and direct URL access.
-    """
-
-    try:
-        bill = SalesBill.objects.get(id=bill_id)
-    except SalesBill.DoesNotExist:
-        raise Http404("Invoice not found")
-
+    bill = get_object_or_404(SalesBill, id=bill_id)
     items = SalesItem.objects.filter(sales_bill=bill)
 
-    # PDF buffer
     buffer = io.BytesIO()
-
-    # --- CHOOSE INVOICE FORMAT ---
-    # Format A = A4 (default)
-    # Format B = Thermal 80mm
-    invoice_format = request.GET.get("format", "A").upper()
-
-    if invoice_format == "B":
-        # Thermal width = 80mm, height auto (use long height)
-        page_width = 80 * mm
-        page_height = 500 * mm  # long height scroll
-        pagesize = (page_width, page_height)
-    else:
-        # A4 Portrait default
-        pagesize = A4
-        page_width, page_height = A4
+    pagesize = A4
+    page_width, page_height = A4
 
     pdf = canvas.Canvas(buffer, pagesize=pagesize)
 
-    # ------------ HEADER --------------
     y = page_height - 30
-
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawString(30, y, "AONE FOOTWEAR")
     y -= 15
@@ -309,15 +445,14 @@ def generate_invoice_pdf(request, bill_id):
     y -= 20
 
     pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(30, y, f"Invoice No: {bill.id}")
+    pdf.drawString(30, y, f"Invoice No: {bill.bill_number}")
     y -= 12
-    pdf.drawString(30, y, f"Date: {bill.created_at.strftime('%d-%m-%Y %H:%M')}")
+    pdf.drawString(30, y, f"Date: {bill.bill_date.strftime('%d-%m-%Y %H:%M')}")
     y -= 20
 
     pdf.line(20, y, page_width - 20, y)
     y -= 10
 
-    # -------- TABLE HEADER ------------
     pdf.setFont("Helvetica-Bold", 10)
     pdf.drawString(25, y, "Item")
     pdf.drawString(page_width - 160, y, "Qty")
@@ -328,24 +463,21 @@ def generate_invoice_pdf(request, bill_id):
     pdf.line(20, y, page_width - 20, y)
     y -= 10
 
-    # -------- TABLE ROWS ------------
     pdf.setFont("Helvetica", 9)
 
     total_amount = 0
     tax_total = 0
 
     for item in items:
-        product_name = f"{item.product.brand.name} {item.product.section.name} {item.product.size.value}"
+        name = f"{item.product.brand.name} {item.product.section.name} {item.product.size.value}"
         line_total = float(item.quantity) * float(item.selling_price)
         total_amount += line_total
 
-        # GST calculation
         gst_rate = float(item.gst_percent or 0)
         gst_amount = (line_total * gst_rate) / 100
         tax_total += gst_amount
 
-        # Print row
-        pdf.drawString(25, y, product_name[:25])
+        pdf.drawString(25, y, name[:25])
         pdf.drawString(page_width - 160, y, str(item.quantity))
         pdf.drawString(page_width - 120, y, f"{item.selling_price:.2f}")
         pdf.drawString(page_width - 70, y, f"{line_total:.2f}")
@@ -356,7 +488,6 @@ def generate_invoice_pdf(request, bill_id):
             y = page_height - 40
             pdf.setFont("Helvetica", 9)
 
-    # -------- TOTALS ------------
     y -= 15
     pdf.line(20, y, page_width - 20, y)
     y -= 12
@@ -377,16 +508,13 @@ def generate_invoice_pdf(request, bill_id):
 
     pdf.setFont("Helvetica", 9)
     pdf.drawString(30, y, "Thank you for shopping with AONE FOOTWEAR!")
-    y -= 12
-    pdf.drawString(30, y, "GST Inclusive Wherever Applicable")
 
     pdf.showPage()
     pdf.save()
 
     buffer.seek(0)
+    return FileResponse(buffer, as_attachment=True, filename=f"Invoice_{bill.bill_number}.pdf")
 
-    filename = f"Invoice_{bill.id}.pdf"
-    return FileResponse(buffer, as_attachment=True, filename=filename)
 
 
 # ---------- Stock Ledger ----------
@@ -394,7 +522,7 @@ def generate_invoice_pdf(request, bill_id):
 @login_required
 def ledger_view(request):
     qs = Stock.objects.select_related('product', 'product__brand', 'product__category', 'product__section',
-        'product__size').all()
+                                      'product__size').all()
 
     # Filters from GET
     brand_id = request.GET.get('brand')
@@ -418,7 +546,7 @@ def ledger_view(request):
 
     # Create an expression for valuation = quantity * product.mrp with explicit output_field
     valuation_expr = ExpressionWrapper(F('quantity') * F('product__mrp'),
-        output_field=DecimalField(max_digits=14, decimal_places=2))
+                                       output_field=DecimalField(max_digits=14, decimal_places=2))
 
     # Annotate per-row valuation (uses Decimal output_field to avoid mixed types)
     qs = qs.annotate(
@@ -429,12 +557,12 @@ def ledger_view(request):
                                                                                   '-purchase__id')
 
     qs = qs.annotate(supplier_name=Subquery(latest_pi.values('purchase__supplier__name')[:1]),
-        bill_number=Subquery(latest_pi.values('purchase__bill_number')[:1]))
+                     bill_number=Subquery(latest_pi.values('purchase__bill_number')[:1]))
 
     # Compute totals from the filtered queryset using the same valuation expression
     totals = qs.aggregate(total_qty=Coalesce(Sum('quantity'), Value(0)),
-        total_valuation=Coalesce(Sum(valuation_expr), Value(0),
-                                 output_field=DecimalField(max_digits=18, decimal_places=2)))
+                          total_valuation=Coalesce(Sum(valuation_expr), Value(0),
+                                                   output_field=DecimalField(max_digits=18, decimal_places=2)))
 
     # Pass dropdown lists if you want server-side filled dependent selects
     brands = Brand.objects.all()
@@ -444,7 +572,7 @@ def ledger_view(request):
     sizes = Size.objects.filter(section_id=section_id) if section_id else Size.objects.none()
 
     context = {'stocks': qs, 'brands': brands, 'suppliers': suppliers, 'categories': categories, 'sections': sections,
-        'sizes': sizes, 'totals': totals, }
+               'sizes': sizes, 'totals': totals, }
     return render(request, 'inventory/ledger.html', context)
 
 
@@ -479,14 +607,14 @@ def api_product_info(request):
     size_id = request.GET.get('size_id')
 
     products = Product.objects.filter(brand_id=brand_id, category_id=category_id, section_id=section_id,
-        size_id=size_id)
+                                      size_id=size_id)
 
     # multi-MRP list + stock
     data = []
     for p in products:
         qty = getattr(p.stock, 'quantity', 0)
         data.append({'product_id': p.id, 'mrp': float(p.mrp), 'default_discount': float(p.default_discount_percent),
-            'gst_percent': float(p.gst_percent), 'stock_qty': qty, })
+                     'gst_percent': float(p.gst_percent), 'stock_qty': qty, })
 
     return JsonResponse(data, safe=False)
 
@@ -534,11 +662,11 @@ def master_size_add(request):
             return redirect("size_add")
     return render(request, "inventory/master/size_add.html", {"form": form})
 
+
 @login_required
 def master_dashboard(request):
-    return render(request, "inventory/master/dashboard.html", {
-        "brands": Brand.objects.all(),
-    })
+    return render(request, "inventory/master/dashboard.html", {"brands": Brand.objects.all(), })
+
 
 @login_required
 def master_size_add(request):
@@ -548,10 +676,7 @@ def master_size_add(request):
         selected_sizes = request.POST.getlist("sizes")  # list: ["6","7","10","Free"]
 
         for size_val in selected_sizes:
-            Size.objects.get_or_create(
-                section=section,
-                value=size_val
-            )
+            Size.objects.get_or_create(section=section, value=size_val)
 
         messages.success(request, "Sizes saved successfully!")
         return redirect("master_dashboard")
@@ -595,10 +720,7 @@ def sales_dashboard_data(request):
         end_date = today
 
     # Base bill queryset for filtered range
-    bills_qs = SalesBill.objects.filter(
-        bill_date__date__gte=start_date,
-        bill_date__date__lte=end_date
-    )
+    bills_qs = SalesBill.objects.filter(bill_date__date__gte=start_date, bill_date__date__lte=end_date)
 
     # --- KPIs ---
 
@@ -608,78 +730,46 @@ def sales_dashboard_data(request):
 
     # Last 7 days sales (rolling)
     seven_days_ago = today - timedelta(days=6)
-    last_7_qs = SalesBill.objects.filter(
-        bill_date__date__gte=seven_days_ago,
-        bill_date__date__lte=today
-    )
+    last_7_qs = SalesBill.objects.filter(bill_date__date__gte=seven_days_ago, bill_date__date__lte=today)
     last_7_sales = last_7_qs.aggregate(total=Sum("total_amount"))["total"] or 0
 
     # Total sales (filtered range)
     total_sales = bills_qs.aggregate(total=Sum("total_amount"))["total"] or 0
 
     # Total qty sold (filtered range — from items)
-    items_qs = SalesItem.objects.filter(
-        sales_bill__bill_date__date__gte=start_date,
-        sales_bill__bill_date__date__lte=end_date,
-    )
+    items_qs = SalesItem.objects.filter(sales_bill__bill_date__date__gte=start_date,
+        sales_bill__bill_date__date__lte=end_date, )
     total_qty = items_qs.aggregate(total=Sum("quantity"))["total"] or 0
 
     # --- Payment mode summary (filtered) ---
-    payments_raw = bills_qs.values("payment_mode").annotate(
-        amount=Sum("total_amount")
-    )
+    payments_raw = bills_qs.values("payment_mode").annotate(amount=Sum("total_amount"))
 
     payments = []
     for p in payments_raw:
-        payments.append({
-            "mode": p["payment_mode"],
-            "amount": float(p["amount"] or 0),
-        })
+        payments.append({"mode": p["payment_mode"], "amount": float(p["amount"] or 0), })
 
     # --- Best selling article (by qty, filtered range) ---
     best_selling = None
     if items_qs.exists():
-        top_item = (
-            items_qs
-            .values("product")
-            .annotate(qty_sum=Sum("quantity"), amount_sum=Sum("line_total"))
-            .order_by("-qty_sum")
-            .first()
-        )
+        top_item = (items_qs.values("product").annotate(qty_sum=Sum("quantity"), amount_sum=Sum("line_total")).order_by(
+            "-qty_sum").first())
         if top_item:
-            product = Product.objects.select_related(
-                "brand", "category", "section", "size"
-            ).get(id=top_item["product"])
+            product = Product.objects.select_related("brand", "category", "section", "size").get(id=top_item["product"])
             best_selling = {
                 "name": f"{product.brand.name} / {product.category.name} / {product.section.name} / {product.size.value}",
-                "qty": int(top_item["qty_sum"] or 0),
-                "amount": float(top_item["amount_sum"] or 0),
-            }
+                "qty": int(top_item["qty_sum"] or 0), "amount": float(top_item["amount_sum"] or 0), }
 
     # --- Table data (Sales items with bill info) ---
     table_qs = (
-        SalesItem.objects.select_related(
-            "sales_bill",
-            "product__brand",
-            "product__category",
-            "product__section",
-            "product__size",
-        )
-        .filter(
-            sales_bill__bill_date__date__gte=start_date,
-            sales_bill__bill_date__date__lte=end_date,
-        )
-        .order_by("-sales_bill__bill_date", "-id")
-    )
+        SalesItem.objects.select_related("sales_bill", "product__brand", "product__category", "product__section",
+            "product__size", ).filter(sales_bill__bill_date__date__gte=start_date,
+            sales_bill__bill_date__date__lte=end_date, ).order_by("-sales_bill__bill_date", "-id"))
 
     if search:
         table_qs = table_qs.filter(
-            Q(sales_bill__bill_number__icontains=search)
-            | Q(product__brand__name__icontains=search)
-            | Q(product__category__name__icontains=search)
-            | Q(product__section__name__icontains=search)
-            | Q(product__size__value__icontains=search)
-        )
+            Q(sales_bill__bill_number__icontains=search) | Q(product__brand__name__icontains=search) | Q(
+                product__category__name__icontains=search) | Q(product__section__name__icontains=search) | Q(
+                product__size__value__icontains=search))
 
     total_rows = table_qs.count()
     start_idx = (page - 1) * page_size
@@ -691,40 +781,19 @@ def sales_dashboard_data(request):
         product = item.product
         line_amount = float(item.line_total or (item.quantity * item.selling_price))
 
-        rows.append({
-            "bill_no": bill.bill_number,
-            "date": bill.bill_date.strftime("%d-%m-%Y"),
+        rows.append({"bill_no": bill.bill_number, "date": bill.bill_date.strftime("%d-%m-%Y"),
             "article": product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
-            "category": product.category.name,
-            "size": product.size.value,
-            "qty": item.quantity,
-            "amount": line_amount,
-            "payment": bill.get_payment_mode_display(),
-        })
+            "category": product.category.name, "size": product.size.value, "qty": item.quantity, "amount": line_amount,
+            "payment": bill.get_payment_mode_display(), })
 
     total_pages = (total_rows + page_size - 1) // page_size if page_size else 1
 
-    data = {
-        "kpis": {
-            "today_sales": float(today_sales),
-            "last_7_sales": float(last_7_sales),
-            "total_sales": float(total_sales),
-            "total_qty": int(total_qty or 0),
-        },
-        "payments": payments,
+    data = {"kpis": {"today_sales": float(today_sales), "last_7_sales": float(last_7_sales),
+        "total_sales": float(total_sales), "total_qty": int(total_qty or 0), }, "payments": payments,
         "best_selling": best_selling,
-        "table": {
-            "rows": rows,
-            "page": page,
-            "page_size": page_size,
-            "total_rows": total_rows,
-            "total_pages": total_pages,
-        },
-        "meta": {
-            "start_date": start_date.strftime("%d-%m-%Y"),
-            "end_date": end_date.strftime("%d-%m-%Y"),
-        }
-    }
+        "table": {"rows": rows, "page": page, "page_size": page_size, "total_rows": total_rows,
+            "total_pages": total_pages, },
+        "meta": {"start_date": start_date.strftime("%d-%m-%Y"), "end_date": end_date.strftime("%d-%m-%Y"), }}
 
     return JsonResponse(data)
 
@@ -735,6 +804,7 @@ def export_sales_excel(request):
     Export filtered sales (same filters as dashboard) to CSV (Excel-friendly).
     URL: /sales/export/
     """
+
     start_str = request.GET.get("start_date")
     end_str = request.GET.get("end_date")
     search = request.GET.get("search", "").strip()
@@ -752,12 +822,13 @@ def export_sales_excel(request):
         end_date = today
 
     qs = (
-        SalesItem.objects.select_related(
+        SalesItem.objects
+        .select_related(
             "sales_bill",
             "product__brand",
             "product__category",
             "product__section",
-            "product__size",
+            "product__size"
         )
         .filter(
             sales_bill__bill_date__date__gte=start_date,
@@ -768,11 +839,11 @@ def export_sales_excel(request):
 
     if search:
         qs = qs.filter(
-            Q(sales_bill__bill_number__icontains=search)
-            | Q(product__brand__name__icontains=search)
-            | Q(product__category__name__icontains=search)
-            | Q(product__section__name__icontains=search)
-            | Q(product__size__value__icontains=search)
+            Q(sales_bill__bill_number__icontains=search) |
+            Q(product__brand__name__icontains=search) |
+            Q(product__category__name__icontains=search) |
+            Q(product__section__name__icontains=search) |
+            Q(product__size__value__icontains=search)
         )
 
     # CSV response
@@ -781,35 +852,64 @@ def export_sales_excel(request):
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
-    writer.writerow(["Bill No", "Date", "Article", "Category", "Size", "Qty", "Amount", "Payment"])
 
+    # ===========================
+    #   UPDATED COLUMN HEADERS
+    # ===========================
+    writer.writerow([
+        "Date",
+        "Bill No",
+        "Article",
+        "Category",
+        "Size",
+        "Qty",
+        "MRP",
+        "Discount",
+        "Total GST",
+        "Total",
+        "Payment Mode",
+        "Customer Mobile Number"
+    ])
     for item in qs:
         bill = item.sales_bill
         product = item.product
+
         line_amount = float(item.line_total or (item.quantity * item.selling_price))
+        discount = float(item.discount_amount or 0)
+
+        # Compute total GST
+        total_gst = float(item.gst_amount)
 
         writer.writerow([
-            bill.bill_number,
             bill.bill_date.strftime("%d-%m-%Y"),
+            bill.bill_number,
             product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
             product.category.name,
             product.size.value,
             item.quantity,
+            f"{item.mrp:.2f}",
+            f"{discount:.2f}",
+            f"{total_gst:.2f}",      # NEW COLUMN
             f"{line_amount:.2f}",
-            bill.get_payment_mode_display(),
+            bill.payment_mode,
+            bill.customer.phone if bill.customer else ""
         ])
 
     return response
 
+
+
 def landing_view(request):
     return render(request, "inventory/landing.html")
+
 
 def privacy_view(request):
     return render(request, "inventory/privacy.html")
 
+
 def terms_view(request):
     return render(request, "inventory/terms.html")
 
+
 def contact_view(request):
     return render(request, "inventory/contact.html")
-

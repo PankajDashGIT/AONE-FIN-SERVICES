@@ -2,117 +2,183 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Invoice {{ sale.invoice_no }}</title>
+    <title>Invoice {{ sale.bill_number }}</title>
+
     <style>
-        body { font-family: Arial, sans-serif; font-size: 13px; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
-        .text-right { text-align: right; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .no-border td, .no-border th { border: none; }
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f7f7f7;
+            padding: 30px;
+            color: #333;
+        }
+
+        .invoice-box {
+            background: #fff;
+            padding: 25px 35px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            max-width: 900px;
+            margin: auto;
+        }
+
+        h2 {
+            margin-bottom: 5px;
+            color: #2b2b2b;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+
+        .company {
+            font-size: 14px;
+            line-height: 20px;
+        }
+
+        .invoice-details {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        th {
+            background: #2d3748;
+            color: #fff;
+            padding: 10px;
+            text-align: left;
+            border-radius: 4px;
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .totals {
+            margin-top: 20px;
+            float: right;
+            width: 300px;
+        }
+
+        .totals table td {
+            border: none;
+            padding: 6px 4px;
+            font-size: 15px;
+        }
+
+        .totals .grand-total {
+            font-size: 18px;
+            font-weight: bold;
+            border-top: 2px solid #444;
+            padding-top: 8px;
+        }
+
+        .footer {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .print-btn {
+            background: #2d76ff;
+            color: #fff;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            float: right;
+        }
+
+        .print-btn:hover {
+            background: #1a57cc;
+        }
     </style>
 </head>
-<body>
-<a href="/billing/"
-   style="
-       position: absolute;
-       top: 20px;
-       right: 20px;
-       background: #007bff;
-       color: white;
-       padding: 8px 14px;
-       border-radius: 5px;
-       text-decoration: none;
-       font-size: 14px;
-   ">
-   Back to Billing / POS
-</a>
 
-<div class="header">
-    <h2><b>AONE FOOTWEAR</b></h2>
-    <p>Address: Your Shop Address Here</p>
-    <p>Phone: 1234567890 | GSTIN: XXABCDE1234A1Z5</p>
+<body>
+
+<div class="invoice-box">
+
+    <button class="print-btn" onclick="window.print()">Print Invoice</button>
+
+    <div class="header">
+        <div class="company">
+            <h2>AONE FOOTWEAR</h2>
+            Main Market, Bhubaneswar<br>
+            Phone: +91-9876543210<br>
+            GSTIN: 12ABCDE1234B1Z9
+        </div>
+
+        <div class="invoice-details">
+            <strong>Invoice No:</strong> {{ sale.bill_number }}<br>
+            <strong>Date:</strong> {{ sale.bill_date|date:"d-m-Y H:i" }}<br>
+            <strong>Payment:</strong> {{ sale.payment_mode }}
+        </div>
+    </div>
+
+    <h3>Customer Details</h3>
+    <p>
+        {{ sale.customer.name }}<br>
+        Mobile: {{ sale.customer.phone }}
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40%;">Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>GST</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in sale.items.all %}
+            <tr>
+                <td>{{ item.product.brand.name }} {{ item.product.section.name }} {{ item.product.size.value }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.selling_price }}</td>
+                <td>{{ item.gst_percent }}%</td>
+                <td>{{ item.line_total }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <table>
+            <tr>
+                <td>Subtotal:</td>
+                <td style="text-align:right;">₹ {{ sale.total_amount|floatformat:2 }}</td>
+            </tr>
+            <tr>
+                <td>GST:</td>
+                <td style="text-align:right;">₹ {{ sale.total_gst|floatformat:2 }}</td>
+            </tr>
+            <tr class="grand-total">
+                <td>Grand Total:</td>
+                <td style="text-align:right;">₹ {{ sale.total_amount|add:sale.total_gst|floatformat:2 }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="clear: both;"></div>
+
+    <div class="footer">
+        Thank you for shopping with <strong>AONE FOOTWEAR</strong><br>
+        *Keep your invoice for warranty & service*
+    </div>
+
 </div>
 
-<h3>Tax Invoice</h3>
-
-<table class="no-border">
-    <tr>
-        <td><b>Invoice No:</b> {{ sale.invoice_no }}</td>
-        <td><b>Date:</b> {{ sale.date|date:"d-m-Y H:i" }}</td>
-    </tr>
-    <tr>
-        <td>
-            <b>Billed To:</b><br>
-            {% if sale.customer %}
-                {{ sale.customer.name }}<br>
-                {{ sale.customer.phone }}<br>
-                {{ sale.customer.address }}
-            {% else %}
-                Walk-in Customer
-            {% endif %}
-        </td>
-        <td>
-            <b>Payment Mode:</b> {{ sale.payment_mode }}<br>
-            <b>Credit Invoice:</b> {{ sale.is_credit }}
-        </td>
-    </tr>
-</table>
-
-<br>
-
-<table>
-    <thead>
-        <tr>
-            <th>#</th>
-            <th>Product / HSN</th>
-            <th>Qty</th>
-            <th>Rate</th>
-            <th>Taxable</th>
-            <th>GST %</th>
-            <th>CGST</th>
-            <th>SGST</th>
-            <th>Total</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in sale.items.all %}
-        <tr>
-            <td>{{ forloop.counter }}</td>
-            <td>{{ item.product.name }}<br><small>HSN: {{ item.product.hsn_code }}</small></td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.unit_price }}</td>
-            <td>{{ item.taxable_value }}</td>
-            <td>{{ item.gst_percent }}%</td>
-            <td>{{ item.cgst_amount }}</td>
-            <td>{{ item.sgst_amount }}</td>
-            <td>{{ item.line_total }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<br>
-
-<table>
-    <tr>
-        <td class="text-right"><b>Subtotal:</b></td>
-        <td class="text-right">{{ sale.subtotal }}</td>
-    </tr>
-    <tr>
-        <td class="text-right"><b>Total GST:</b></td>
-        <td class="text-right">{{ sale.total_gst }}</td>
-    </tr>
-    <tr>
-        <td class="text-right"><b>Grand Total:</b></td>
-        <td class="text-right"><b>{{ sale.grand_total }}</b></td>
-    </tr>
-</table>
-
-<br>
-<center>
-    <p><b>Thank you for shopping with us!</b></p>
-    <button onclick="window.print()">Print Invoice</button>
-</center>
 </body>
 </html>

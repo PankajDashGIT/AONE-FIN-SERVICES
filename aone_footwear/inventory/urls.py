@@ -1,14 +1,16 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
-from inventory import views   # adjust app name if different
+from .views import *
+
+# adjust app name if different
 
 urlpatterns = [
 
     # ------------------------------------------------
     # PUBLIC LANDING PAGE (with login modal)
     # ------------------------------------------------
-    path("", views.landing_view, name="landing"),
+    path("", landing_view, name="landing"),
 
     # ------------------------------------------------
     # AUTHENTICATION
@@ -25,49 +27,46 @@ urlpatterns = [
     # ------------------------------------------------
     # MAIN BUSINESS PAGES
     # ------------------------------------------------
-    path("sales/dashboard/", views.sales_dashboard_view, name="sales_dashboard"),
-    path("billing/", views.billing_view, name="billing"),
-    path("purchase/", views.purchase_view, name="purchase"),
-    path("ledger/", views.ledger_view, name="ledger"),
+    path("sales/dashboard/", sales_dashboard_view, name="sales_dashboard"),
+    path("billing/", billing_view, name="billing"),
+    path("purchase/", purchase_view, name="purchase"),
+    path("ledger/", ledger_view, name="ledger"),
 
     # ------------------------------------------------
     # INVOICE
     # ------------------------------------------------
-    path("invoice/<int:bill_id>/", views.generate_invoice_pdf, name="invoice"),
+    path('billing/submit/', billing_view, name='billing-submit'),
+    path("invoice/<int:bill_id>/pdf/", generate_invoice_pdf, name="invoice-pdf"),
 
     # ------------------------------------------------
     # MASTER DATA PAGES
     # ------------------------------------------------
-    path("master/", views.master_dashboard, name="master_dashboard"),
-    path("master/brand/add/", views.master_brand_add, name="brand_add"),
-    path("master/category/add/", views.master_category_add, name="category_add"),
-    path("master/section/add/", views.master_section_add, name="section_add"),
-    path("master/size/add/", views.master_size_add, name="size_add"),
+    path("master/", master_dashboard, name="master_dashboard"),
+    path("master/brand/add/", master_brand_add, name="brand_add"),
+    path("master/category/add/", master_category_add, name="category_add"),
+    path("master/section/add/", master_section_add, name="section_add"),
+    path("master/size/add/", master_size_add, name="size_add"),
 
     # ------------------------------------------------
     # API ENDPOINTS
     # ------------------------------------------------
-    path("api/categories/", views.api_categories, name="api_categories"),
-    path("api/sections/", views.api_sections, name="api_sections"),
-    path("api/sizes/", views.api_sizes, name="api_sizes"),
-    path("api/product-info/", views.api_product_info, name="api_product_info"),
-    path('supplier/add/', views.supplier_add, name='supplier_add'),
+    path("api/categories/", api_categories, name="api_categories"),
+    path("api/sections/", api_sections, name="api_sections"),
+    path("api/sizes/", api_sizes, name="api_sizes"),
+    path("api/product-info/", api_product_info, name="api_product_info"),
+    path('supplier/add/', supplier_add, name='supplier_add'),
 
     # SALES API (AJAX)
-    path("api/sales/dashboard-data/", views.sales_dashboard_data, name="sales_dashboard_data"),
+    path("api/sales/dashboard-data/", sales_dashboard_data, name="sales_dashboard_data"),
 
     # EXPORTS
-    path("sales/export/", views.export_sales_excel, name="sales_export"),
+    path("sales/export/", export_sales_excel, name="sales_export"),
 
     # ------------------------------------------------
     # COMPANY STATIC INFO PAGES
     # ------------------------------------------------
-    path("privacy/", views.privacy_view, name="privacy"),
-    path("terms/", views.terms_view, name="terms"),
-    path("contact/", views.contact_view, name="contact"),
+    path("privacy/", privacy_view, name="privacy"),
+    path("terms/", terms_view, name="terms"),
+    path("contact/", contact_view, name="contact"),
 
-    # ------------------------------------------------
-    # ADMIN
-    # ------------------------------------------------
-    path("admin/", admin.site.urls),
 ]
