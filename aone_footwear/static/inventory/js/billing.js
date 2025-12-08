@@ -1,4 +1,5 @@
 // inventory/static/inventory/js/billing.js
+// (Same changes as the other billing.js file — kept in staticfiles for deployments that use this path.)
 
 let billItems = [];
 let purchaseItems = [];

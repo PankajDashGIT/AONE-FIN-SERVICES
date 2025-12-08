@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="08d9c9e6-39a0-48b0-8982-e1b1c036ab6a" name="Changes" comment="Initial Commit" />
+    <list default="true" id="08d9c9e6-39a0-48b0-8982-e1b1c036ab6a" name="Changes" comment="Addesd landing.html also correct the billing screen">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aone_footwear/static/inventory/js/billing.js" beforeDir="false" afterPath="$PROJECT_DIR$/aone_footwear/static/inventory/js/billing.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -30,16 +33,16 @@
     <option name="showLibraryContents" value="true" />
     <option name="showMembers" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultHtmlFileTemplate": "HTML File",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "E:/aone_footwear/AONE_FOOTWEAR_NEW/aone_footwear/aone_footwear/static/inventory/js",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/aone_footwear/AONE_FOOTWEAR_NEW/aone_footwear/aone_footwear/static/inventory/js&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\aone_footwear\AONE_FOOTWEAR_NEW\aone_footwear\aone_footwear\static\inventory\js" />
@@ -72,7 +75,95 @@
       <option name="project" value="LOCAL" />
       <updated>1765008105567</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Initial Commit">
+      <option name="closed" value="true" />
+      <created>1765047518214</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1765047518214</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Added Master page/ Supplier etc">
+      <option name="closed" value="true" />
+      <created>1765049343143</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1765049343143</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Change the Dashboard Link">
+      <option name="closed" value="true" />
+      <created>1765049747696</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1765049747696</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Change the Dashboard Link">
+      <option name="closed" value="true" />
+      <created>1765049876022</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1765049876022</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Mobile Compatibility Sales Dashboard">
+      <option name="closed" value="true" />
+      <created>1765050675223</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1765050675223</updated>
+    </task>
+    <task id="LOCAL-00007" summary="fix login url redirect and minor changes">
+      <option name="closed" value="true" />
+      <created>1765051675481</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1765051675481</updated>
+    </task>
+    <task id="LOCAL-00008" summary="fix login url redirect and minor changes">
+      <option name="closed" value="true" />
+      <created>1765051797509</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1765051797509</updated>
+    </task>
+    <task id="LOCAL-00009" summary="fix login url redirect and minor changes">
+      <option name="closed" value="true" />
+      <created>1765052012766</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1765052012766</updated>
+    </task>
+    <task id="LOCAL-00010" summary="fix login url redirect and minor changes">
+      <option name="closed" value="true" />
+      <created>1765052213735</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1765052213735</updated>
+    </task>
+    <task id="LOCAL-00011" summary="fix login url redirect and minor changes">
+      <option name="closed" value="true" />
+      <created>1765052244961</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1765052244961</updated>
+    </task>
+    <task id="LOCAL-00012" summary="Addesd landing.html also correct the billing screen">
+      <option name="closed" value="true" />
+      <created>1765176168217</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1765176168217</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -88,6 +179,11 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial Commit" />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial Commit" />
+    <MESSAGE value="Added Master page/ Supplier etc" />
+    <MESSAGE value="Change the Dashboard Link" />
+    <MESSAGE value="Mobile Compatibility Sales Dashboard" />
+    <MESSAGE value="fix login url redirect and minor changes" />
+    <MESSAGE value="Addesd landing.html also correct the billing screen" />
+    <option name="LAST_COMMIT_MESSAGE" value="Addesd landing.html also correct the billing screen" />
   </component>
 </project>
