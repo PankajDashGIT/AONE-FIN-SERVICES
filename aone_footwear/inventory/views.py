@@ -800,3 +800,16 @@ def export_sales_excel(request):
         ])
 
     return response
+
+def landing_view(request):
+    return render(request, "inventory/landing.html")
+
+def privacy_view(request):
+    return render(request, "inventory/privacy.html")
+
+def terms_view(request):
+    return render(request, "inventory/terms.html")
+
+def contact_view(request):
+    return render(request, "inventory/contact.html")
+

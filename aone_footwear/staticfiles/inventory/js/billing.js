@@ -1,5 +1,5 @@
- 
 // inventory/static/inventory/js/billing.js
+// (Same changes as the other billing.js file — kept in staticfiles for deployments that use this path.)
 
 let billItems = [];
 let purchaseItems = [];
@@ -14,7 +14,7 @@ function updateTotals() {
 
     billItems.forEach(item => {
         const qty = Number(item.qty) || 0;
-        const finalPrice = Number(item.final_price) || 0;   // selling price per unit
+        const finalPrice = Number(item.final_price || item.price) || 0;   // selling price per unit
         const gstPercent = Number(item.gst_percent) || 0;
 
         totalQty += qty;
@@ -45,9 +45,15 @@ function updateTotals() {
 function recalcSellingPrice() {
     const mrp = parseFloat($('#bill_mrp option:selected').text()) || 0;
     const defaultDisc = parseFloat($('#bill_default_disc').val()) || 0;
-    const manualDisc = parseFloat($('#bill_manual_disc').val()) || 0;
-    const totalDisc = defaultDisc + manualDisc;
-    const price = mrp - (mrp * totalDisc / 100);
+    const manualChecked = $('#bill_manual_disc_check').is(':checked');
+    const manualDiscRs = manualChecked ? parseFloat($('#bill_manual_disc').val()) || 0 : 0;
+
+    // Calculate selling price:
+    // First apply default percent discount, then subtract manual Rs discount (if enabled)
+    const priceAfterDefault = mrp - (mrp * defaultDisc / 100);
+    let price = priceAfterDefault - manualDiscRs;
+    if (price < 0) price = 0;
+
     $('#bill_selling_price').val(price.toFixed(2));
 }
 
@@ -93,14 +99,27 @@ function removeBillItem(idx) {
 }
 
 $(function () {
-    // Selling price recalculation
-    $('#bill_manual_disc').on('input', recalcSellingPrice);
+    // Selling price recalculation when manual value or MRP/default discount changes
+    $('#bill_manual_disc, #bill_mrp, #bill_default_disc').on('input change', recalcSellingPrice);
+
+    // Toggle manual discount UI
+    $('#bill_manual_disc_check').on('change', function () {
+        if ($(this).is(':checked')) {
+            $('#bill_manual_disc_container').show();
+        } else {
+            $('#bill_manual_disc_container').hide();
+            $('#bill_manual_disc').val('0');
+            recalcSellingPrice();
+        }
+    });
 
     $('#btn_add_to_bill').on('click', function () {
         const qty = parseInt($('#bill_qty').val()) || 0;
-        const stock = parseInt($('#bill_stock_qty').text()) || 0;
-        if (qty <= 0 || qty > stock) {
+        const stockQty = parseInt($('#bill_stock_qty').text()) || 0;
+
+        if (qty <= 0 || qty > stockQty) {
             alert('Invalid quantity or exceeds stock.');
+            if (qty > stockQty) $('#bill_qty').val(stockQty);
             return;
         }
 
@@ -116,8 +135,18 @@ $(function () {
 
         const mrp = parseFloat($('#bill_mrp option:selected').text()) || 0;
         const price = parseFloat($('#bill_selling_price').val()) || 0;
-        const discount = (1 - price / mrp) * 100;
+        const discount = mrp > 0 ? (1 - price / mrp) * 100 : 0;
         const gstPercent = parseFloat($('#bill_mrp option:selected').data('gst')) || 0;
+
+        // Manual discount validation: if manual discount is enabled, ensure it does not exceed 15% of MRP
+        const manualEnabled = $('#bill_manual_disc_check').is(':checked');
+        const manualDiscRs = manualEnabled ? parseFloat($('#bill_manual_disc').val()) || 0 : 0;
+        const maxAllowed = mrp * 0.15;
+        if (manualEnabled && manualDiscRs > maxAllowed) {
+            alert(`Manual discount cannot exceed 15% of MRP (Max ₹${maxAllowed.toFixed(2)}).`);
+            return;
+        }
+
         const gstAmount = price * qty * gstPercent / 100;
         const finalAmount = price * qty + gstAmount;
 
@@ -137,9 +166,10 @@ $(function () {
         });
 
         refreshBillTable();
+        updateTotals();
     });
 
-    // Purchase MSP = MRP * 1.15 and discount interlink
+    // Purchase MSP = MRP * 1.15 and discount interlink (unchanged)
     function recalcPurchase() {
         const mrp = parseFloat($('#pur_mrp').val()) || 0;
         const discPercent = parseFloat($('#pur_disc_percent').val()) || 0;
@@ -166,7 +196,30 @@ $(function () {
 
     $('#pur_mrp, #pur_disc_percent, #pur_disc_rs, #pur_price').on('input', recalcPurchase);
 
+    $('#bill_stock_qty').text(data.stock_qty);
+    $('#bill_qty').attr('max', data.stock_qty);
 
+    // Confirm on submit: show confirmation popup and only submit if confirmed
+    $('#billing_form').on('submit', function (e) {
+        // Prevent default submit and show confirm dialog
+        e.preventDefault();
+
+        // Basic validation: there must be at least one item
+        if (billItems.length === 0) {
+            alert('Please add at least one item to the bill before submitting.');
+            return;
+        }
+
+        const confirmed = confirm('Are you sure you want to submit the bill?');
+        if (confirmed) {
+            // Submit the form normally
+            this.submit();
+        } else {
+            // Do nothing — user cancelled
+        }
+    });
+
+    // Purchase add button (unchanged)
     $('#btn_add_for_billing').on('click', function () {
         const qty = parseInt($('#pur_qty').val()) || 0;
         if (qty <= 0) {

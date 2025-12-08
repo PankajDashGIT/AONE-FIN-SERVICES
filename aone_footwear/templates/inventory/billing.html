@@ -1,4 +1,3 @@
- 
 {% extends 'inventory/base.html' %}
 {% load static %}
 {% block content %}
@@ -62,9 +61,16 @@
                 <input id="bill_default_disc" class="form-control" readonly>
             </div>
 
+            <!-- Manual discount: checkbox toggles Rs input (hidden by default) -->
             <div class="mb-2">
-                <label>Manual Discount (%)</label>
-                <input id="bill_manual_disc" class="form-control" value="0">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="bill_manual_disc_check">
+                    <label class="form-check-label">Apply Manual Discount (Rs)</label>
+                </div>
+                <div id="bill_manual_disc_container" class="mt-2" style="display:none;">
+                    <input id="bill_manual_disc" class="form-control" value="0" type="number" min="0" step="0.01">
+                    <div class="small text-muted">Max manual discount allowed per item: 15% of MRP</div>
+                </div>
             </div>
 
             <div class="mb-2">

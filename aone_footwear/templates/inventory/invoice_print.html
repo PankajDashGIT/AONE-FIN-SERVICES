@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ sale.invoice_no }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 13px; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+        .text-right { text-align: right; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .no-border td, .no-border th { border: none; }
+    </style>
+</head>
+<body>
+<a href="/billing/"
+   style="
+       position: absolute;
+       top: 20px;
+       right: 20px;
+       background: #007bff;
+       color: white;
+       padding: 8px 14px;
+       border-radius: 5px;
+       text-decoration: none;
+       font-size: 14px;
+   ">
+   Back to Billing / POS
+</a>
+
+<div class="header">
+    <h2><b>AONE FOOTWEAR</b></h2>
+    <p>Address: Your Shop Address Here</p>
+    <p>Phone: 1234567890 | GSTIN: XXABCDE1234A1Z5</p>
+</div>
+
+<h3>Tax Invoice</h3>
+
+<table class="no-border">
+    <tr>
+        <td><b>Invoice No:</b> {{ sale.invoice_no }}</td>
+        <td><b>Date:</b> {{ sale.date|date:"d-m-Y H:i" }}</td>
+    </tr>
+    <tr>
+        <td>
+            <b>Billed To:</b><br>
+            {% if sale.customer %}
+                {{ sale.customer.name }}<br>
+                {{ sale.customer.phone }}<br>
+                {{ sale.customer.address }}
+            {% else %}
+                Walk-in Customer
+            {% endif %}
+        </td>
+        <td>
+            <b>Payment Mode:</b> {{ sale.payment_mode }}<br>
+            <b>Credit Invoice:</b> {{ sale.is_credit }}
+        </td>
+    </tr>
+</table>
+
+<br>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product / HSN</th>
+            <th>Qty</th>
+            <th>Rate</th>
+            <th>Taxable</th>
+            <th>GST %</th>
+            <th>CGST</th>
+            <th>SGST</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in sale.items.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}<br><small>HSN: {{ item.product.hsn_code }}</small></td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit_price }}</td>
+            <td>{{ item.taxable_value }}</td>
+            <td>{{ item.gst_percent }}%</td>
+            <td>{{ item.cgst_amount }}</td>
+            <td>{{ item.sgst_amount }}</td>
+            <td>{{ item.line_total }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<br>
+
+<table>
+    <tr>
+        <td class="text-right"><b>Subtotal:</b></td>
+        <td class="text-right">{{ sale.subtotal }}</td>
+    </tr>
+    <tr>
+        <td class="text-right"><b>Total GST:</b></td>
+        <td class="text-right">{{ sale.total_gst }}</td>
+    </tr>
+    <tr>
+        <td class="text-right"><b>Grand Total:</b></td>
+        <td class="text-right"><b>{{ sale.grand_total }}</b></td>
+    </tr>
+</table>
+
+<br>
+<center>
+    <p><b>Thank you for shopping with us!</b></p>
+    <button onclick="window.print()">Print Invoice</button>
+</center>
+</body>
+</html>
