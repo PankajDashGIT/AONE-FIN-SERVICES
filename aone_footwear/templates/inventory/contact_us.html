@@ -1,0 +1,83 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container my-5">
+
+  <div class="text-center mb-5">
+    <h2 class="fw-bold">Contact Us</h2>
+    <p class="text-muted">We’d love to hear from you. Get in touch with A-ONE Footwear.</p>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- CONTACT INFO -->
+    <div class="col-md-5">
+      <div class="card shadow-sm p-4 h-100">
+        <h5 class="fw-bold mb-3">Reach Us</h5>
+
+        <p class="mb-2">
+          <strong>🏬 Address:</strong><br>
+          A-ONE Footwear,<br>
+          Main Market, Bhubaneswar,<br>
+          Odisha – 751001
+        </p>
+
+        <p class="mb-2">
+          <strong>📞 Phone:</strong><br>
+          +91 98765 43210
+        </p>
+
+        <p class="mb-2">
+          <strong>✉️ Email:</strong><br>
+          support@aonefootwear.com
+        </p>
+
+        <p class="mb-0">
+          <strong>⏰ Working Hours:</strong><br>
+          Mon – Sat: 10:00 AM – 8:00 PM
+        </p>
+      </div>
+    </div>
+
+    <!-- CONTACT FORM -->
+    <div class="col-md-7">
+      <div class="card shadow-sm p-4">
+        <h5 class="fw-bold mb-3">Send Us a Message</h5>
+
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Your Name</label>
+              <input type="text" name="name" class="form-control" placeholder="Enter your name" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Email Address</label>
+              <input type="email" name="email" class="form-control" placeholder="Enter your email" required>
+            </div>
+
+            <div class="col-md-12">
+              <label class="form-label">Phone Number</label>
+              <input type="text" name="phone" class="form-control" placeholder="Enter your phone number">
+            </div>
+
+            <div class="col-md-12">
+              <label class="form-label">Message</label>
+              <textarea name="message" rows="4" class="form-control" placeholder="Type your message here..." required></textarea>
+            </div>
+
+            <div class="col-md-12 text-end">
+              <button class="btn btn-primary px-4">Send Message</button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

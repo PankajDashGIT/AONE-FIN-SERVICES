@@ -911,9 +911,9 @@ def privacy_view(request):
 def terms_view(request):
     return render(request, "inventory/terms.html")
 
-
+@login_required()
 def contact_view(request):
-    return render(request, "inventory/contact.html")
+    return render(request, "inventory/contact_us.html")
 
 
 @login_required
