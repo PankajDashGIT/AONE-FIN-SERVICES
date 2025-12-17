@@ -1,0 +1,227 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>A-ONE FOOTWEAR</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #fff;
+      color: #333;
+    }
+    header {
+      background: #111;
+      color: #fff;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header nav a {
+      color: #fff;
+      margin: 0 15px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .hero {
+      background: linear-gradient(135deg, #ff6f61, #ffcc00);
+      padding: 60px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .hero-text {
+      max-width: 500px;
+    }
+    .hero-text h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+    .hero-text p {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+    .hero-text button {
+      background: #111;
+      color: #fff;
+      padding: 12px 25px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .hero-img img {
+      max-width: 400px;
+      border-radius: 20px;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      background: #f9f9f9;
+      padding: 30px 0;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    .section {
+      padding: 40px;
+      text-align: center;
+    }
+    .products {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .product-card {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      width: 250px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .product-card:hover {
+      transform: scale(1.05);
+    }
+    .product-card img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .features {
+      display: flex;
+      justify-content: space-around;
+      padding: 30px;
+      background: #ffefc5;
+      font-weight: bold;
+    }
+    .offer {
+      background: #ff6f61;
+      color: #fff;
+      padding: 40px;
+      text-align: center;
+      border-radius: 10px;
+      margin: 40px;
+    }
+    .testimonials {
+      background: #f0f0f0;
+      padding: 40px;
+      text-align: center;
+    }
+    .testimonial {
+      margin: 20px;
+      font-style: italic;
+    }
+    .newsletter {
+      background: #222;
+      color: #fff;
+      padding: 40px;
+      text-align: center;
+    }
+    .newsletter input {
+      padding: 10px;
+      width: 300px;
+      margin-right: 10px;
+      border: none;
+      border-radius: 5px;
+    }
+    .newsletter button {
+      padding: 10px 20px;
+      background: #ffcc00;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    footer {
+      background: #111;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div><strong>A-ONE FOOTWEAR</strong></div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">About Us</a>
+      <a href="#">Services</a>
+      <a href="#">Contact Us</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div class="hero-text">
+      <h1>New Arrival Shoes</h1>
+      <p>Step into style with our latest funky collection. Designed for comfort, built for impact.</p>
+      <button>Shop Now</button>
+    </div>
+    <div class="hero-img">
+      <img src="shoe-banner.jpg" alt="New Shoe Arrival">
+    </div>
+  </div>
+
+  <div class="stats">
+    <div>1k+ Brands</div>
+    <div>500+ Shops</div>
+    <div>250k+ Customers</div>
+  </div>
+
+  <section class="section">
+    <h2>Our Popular Products</h2>
+    <div class="products">
+      <div class="product-card">
+        <img src="shoe1.jpg" alt="Sneaker">
+        <h3>Funky Sneaker</h3>
+        <p>₹2,499</p>
+      </div>
+      <div class="product-card">
+        <img src="shoe2.jpg" alt="Loafer">
+        <h3>Classic Loafer</h3>
+        <p>₹1,999</p>
+      </div>
+      <div class="product-card">
+        <img src="shoe3.jpg" alt="Trainer">
+        <h3>Sport Trainer</h3>
+        <p>₹2,799</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="features">
+    <div>🚚 Free Shipping</div>
+    <div>🔒 Secure Payment</div>
+    <div>💬 Love to Help You</div>
+  </div>
+
+  <div class="offer">
+    <h2>Special Offer</h2>
+    <p>🎉 30% OFF on Summer Collection</p>
+    <button>Shop Now</button>
+  </div>
+
+  <div class="testimonials">
+    <h2>What Our Customers Say</h2>
+    <div class="testimonial">"Amazing quality and super stylish!" – Hosich Brown</div>
+    <div class="testimonial">"Fast delivery and great support!" – Lota Moonsaker</div>
+  </div>
+
+  <div class="newsletter">
+    <h2>Sign Up for Updates</h2>
+    <input type="email" placeholder="Enter your email address" />
+    <button>Sign Up</button>
+  </div>
+
+  <footer>
+    <p>&copy; 2025 A-ONE FOOTWEAR. All rights reserved.</p>
+    <p>Products | Help | Get in Touch</p>
+  </footer>
+
+</body>
+</html>

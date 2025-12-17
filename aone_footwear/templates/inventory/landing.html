@@ -2,254 +2,199 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A-One Footwear | Shop Smart</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>A-ONE FOOTWEAR</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Bootstrap (for carousel) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #f8fafc;
-            color: #1e293b;
-        }
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #fff;
+      color: #333;
+    }
+    header {
+      background: #111;
+      color: #fff;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header nav a {
+      color: #fff;
+      margin: 0 15px;
+      text-decoration: none;
+      font-weight: bold;
+    }
 
-        /* ---------------- BRAND STRIP ---------------- */
-        .brand-strip img {
-            height: 65px;
-            object-fit: contain;
-            filter: grayscale(100%);
-            opacity: 0.8;
-            transition: 0.3s;
-        }
-        .brand-strip img:hover {
-            filter: grayscale(0%);
-            opacity: 1;
-        }
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, #ff6f61, #ffcc00);
+      padding: 60px 40px;
+    }
+    .hero h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+    .hero p {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+    .hero button {
+      background: #111;
+      color: #fff;
+      padding: 12px 25px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+    }
 
-        /* ---------------- CAROUSEL ---------------- */
-        .shoe-carousel {
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-        .shoe-carousel img {
-            width: 100%;
-            height: 380px;
-            object-fit: cover;
-            transition: transform 1.2s ease;
-        }
-        .carousel-item {
-            position: relative;
-        }
-        .carousel-item:hover img {
-            transform: scale(1.05);
-        }
-        .carousel-caption-custom {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            padding: 12px 20px;
-            background: rgba(0,0,0,0.45);
-            color: white;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            backdrop-filter: blur(4px);
-        }
-        @media(max-width: 600px) {
-            .shoe-carousel img { height: 250px; }
-            .carousel-caption-custom { font-size: .9rem; }
-        }
+    /* STATS */
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      background: #f9f9f9;
+      padding: 30px 0;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
 
-        /* ---------------- COLLECTION BOXES ---------------- */
-        .collection-card {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-            transition: 0.3s ease-in-out;
-            text-align: center;
-        }
-        .collection-card:hover {
-            transform: translateY(-5px);
-        }
-        .collection-card img {
-            height: 180px;
-            object-fit: contain;
-        }
+    /* PRODUCTS */
+    .section {
+      padding: 40px;
+      text-align: center;
+    }
+    .products {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .product-card {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      width: 250px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .product-card:hover {
+      transform: scale(1.05);
+    }
+    .product-card img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
 
-        /* ---------------- TESTIMONIALS ---------------- */
-        .testimonial-box {
-            background: white;
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.05);
-        }
-
-        /* ---------------- FOOTER ---------------- */
-        footer {
-            background: #0f172a;
-            color: #cbd5e1;
-            padding: 20px 0;
-        }
-        footer a {
-            color: #94a3b8;
-            text-decoration: none;
-        }
-        footer a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    footer {
+      background: #111;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
 </head>
 <body>
 
-<!-- ======================= TOP RIGHT LOGIN + TITLE ======================= -->
-<div class="container-fluid py-3 d-flex justify-content-between align-items-center">
-    <h2 class="fw-bold text-dark m-0">Welcome to Era of Shoes<br><span class="text-primary">A-ONE Footwear</span></h2>
+<header>
+  <div><strong>A-ONE FOOTWEAR</strong></div>
+  <nav>
+    <a href="#">Home</a>
+    <a href="#">About Us</a>
+    <a href="#">Services</a>
+    <a href="#">Contact Us</a>
+  </nav>
+</header>
 
-    <a href="{% url 'login' %}" class="btn btn-primary rounded-pill px-4">
-        <i class="bi bi-box-arrow-in-right me-1"></i> Login
-    </a>
-</div>
+<!-- HERO + CAROUSEL -->
+<section class="hero">
+  <div class="container">
+    <div class="row align-items-center">
 
-<!-- ======================= BRAND STRIP (Local Static Images) ======================= -->
-<section class="container text-center my-4">
-    <div class="brand-strip d-flex justify-content-center gap-4 flex-wrap">
-        <img src="{% static 'inventory/images/nike.png' %}" alt="Nike">
-        <img src="{% static 'inventory/images/Adidas-Logo.png' %}" alt="Adidas">
-        <img src="{% static 'inventory/images/Puma_logo.png' %}" alt="Puma">
-        <img src="{% static 'inventory/images/bata-logo.png' %}" alt="Bata">
-        <img src="{% static 'inventory/images/Reebok-Logo.png' %}" alt="Reebok">
-        <img src="{% static 'inventory/images/Bahamas-Logo.png' %}" alt="Bahamas">
+      <div class="col-md-6 text-white">
+        <h1>New Arrival Shoes</h1>
+        <p>Step into style with our latest funky collection. Designed for comfort, built for impact.</p>
+        <button>Shop Now</button>
+      </div>
+
+      <div class="col-md-6">
+        <div id="shoeCarousel" class="carousel slide" data-bs-ride="carousel">
+          <div class="carousel-inner">
+
+            <div class="carousel-item active">
+              <img src="{% static 'inventory/images/shoe-banner.jpeg' %}" class="d-block w-100 rounded" alt="Shoe Banner">
+            </div>
+
+            <div class="carousel-item">
+              <img src="{% static 'inventory/images/CR1.jpg' %}" class="d-block w-100 rounded" alt="Shoe 2">
+            </div>
+
+            <div class="carousel-item">
+              <img src="{% static 'inventory/images/CR2.jpg' %}" class="d-block w-100 rounded" alt="Shoe 3">
+            </div>
+
+            <div class="carousel-item">
+              <img src="{% static 'inventory/images/CR3.jpg' %}" class="d-block w-100 rounded" alt="Shoe 3">
+            </div>
+
+          </div>
+
+          <button class="carousel-control-prev" type="button" data-bs-target="#shoeCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#shoeCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+          </button>
+        </div>
+      </div>
+
     </div>
+  </div>
 </section>
 
-
-
-<!-- ======================= SHOE CAROUSEL ======================= -->
-<div id="shoeCarousel" class="carousel slide container my-5 shoe-carousel" data-bs-ride="carousel">
-    <div class="carousel-inner">
-
-        <div class="carousel-item active">
-            <img src="{% static 'inventory/images/carousel1.jpg' %}" class="d-block w-100" alt="Sneakers">
-            <div class="carousel-caption-custom">Comfort Sandals</div>
-        </div>
-        </div>
-
-        <div class="carousel-item">
-            <img src="{% static 'inventory/images/carousel2.jpg' %}" class="d-block w-100" alt="Sandals">
-            <div class="carousel-caption-custom">Comfort Sandals</div>
-        </div>
-        </div>
-
-        <div class="carousel-item">
-            <img src="{% static 'inventory/images/carousel3.jpg' %}" class="d-block w-100" alt="Men’s Formal Shoes">
-            <div class="carousel-caption-custom">Men’s Formal Shoes</div>
-        </div>
-        </div>
-
-        <div class="carousel-item">
-            <img src="{% static 'inventory/images/carousel4.jpg' %}" class="d-block w-100" alt="Ladies Fashion Wear">
-            <div class="carousel-caption-custom">Ladies Fashion Wear</div>
-        </div>
-        </div>
-
-    </div>
-
-    <button class="carousel-control-prev" type="button" data-bs-target="#shoeCarousel" data-bs-slide="prev">
-        <span class="carousel-control-prev-icon"></span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#shoeCarousel" data-bs-slide="next">
-        <span class="carousel-control-next-icon"></span>
-    </button>
+<!-- STATS -->
+<div class="stats">
+  <div>1k+ Brands</div>
+  <div>500+ Shops</div>
+  <div>250k+ Customers</div>
 </div>
 
-    <button class="carousel-control-prev" type="button" data-bs-target="#shoeCarousel" data-bs-slide="prev">
-        <span class="carousel-control-prev-icon"></span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#shoeCarousel" data-bs-slide="next">
-        <span class="carousel-control-next-icon"></span>
-    </button>
-</div>
+<!-- PRODUCTS -->
+<section class="section">
+  <h2>Our Popular Products</h2>
+  <div class="products">
 
-<!-- ======================= COLLECTION LISTS ======================= -->
-<section class="container my-5">
-    <h2 class="text-center fw-bold mb-4">Shop by Category</h2>
-
-    <div class="row g-4">
-        <div class="col-6 col-md-3">
-            <div class="collection-card">
-                <img src="https://images.unsplash.com/photo-1584735175012-9c6289d107ea">
-                <h6 class="mt-3">Men’s Shoes</h6>
-            </div>
-        </div>
-
-        <div class="col-6 col-md-3">
-            <div class="collection-card">
-                <img src="https://images.unsplash.com/photo-1575537302964-96cd47c06b3f">
-                <h6 class="mt-3">Ladies Sandals</h6>
-            </div>
-        </div>
-
-        <div class="col-6 col-md-3">
-            <div class="collection-card">
-                <img src="https://images.unsplash.com/photo-1600180758890-d622b376b7d1">
-                <h6 class="mt-3">Sports Wear</h6>
-            </div>
-        </div>
-
-        <div class="col-6 col-md-3">
-            <div class="collection-card">
-                <img src="https://images.unsplash.com/photo-1546638001-534bca5f3f11">
-                <h6 class="mt-3">Kids Collection</h6>
-            </div>
-        </div>
+    <div class="product-card">
+      <img src="{% static 'inventory/images/cr1.jpg' %}" alt="Sneaker">
+      <h3>Funky Sneaker</h3>
+<!--      <p>₹2,499</p>-->
     </div>
+
+    <div class="product-card">
+      <img src="{% static 'inventory/images/product2.jpg' %}" alt="Loafer">
+      <h3>Classic Loafer</h3>
+<!--      <p>₹1,999</p>-->
+    </div>
+
+    <div class="product-card">
+      <img src="{% static 'inventory/images/product3.jpg' %}" alt="Trainer">
+      <h3>Sport Trainer</h3>
+<!--      <p>₹2,799</p>-->
+    </div>
+
+  </div>
 </section>
 
-<!-- ======================= TESTIMONIALS ======================= -->
-<section class="container my-5">
-    <h2 class="text-center fw-bold mb-4">What Customers Say</h2>
-
-    <div class="row g-4">
-        <div class="col-md-4">
-            <div class="testimonial-box">
-                <p class="mb-1">“Amazing comfort and top quality! My go-to footwear store.”</p>
-                <small>– Rahul (Bhubaneswar)</small>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="testimonial-box">
-                <p class="mb-1">“The variety is huge. My entire family loves their collection!”</p>
-                <small>– Priya (Cuttack)</small>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="testimonial-box">
-                <p class="mb-1">“Fast delivery and genuine brands. Highly recommended.”</p>
-                <small>– Sanjay (Puri)</small>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ======================= FOOTER ======================= -->
-<footer class="text-center">
-    <div class="container">
-        <p class="mb-1">
-            <a href="/privacy/">Privacy Policy</a> •
-            <a href="/terms/">Terms</a> •
-            <a href="/contact/">Contact</a>
-        </p>
-        <p>© 2025 A-One Footwear. All rights reserved.</p>
-    </div>
+<footer>
+  <p>&copy; 2025 A-ONE FOOTWEAR. All rights reserved.</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 </html>

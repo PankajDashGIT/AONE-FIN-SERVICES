@@ -1,5 +1,4 @@
 // inventory/static/inventory/js/billing.js
-// (Same changes as the other billing.js file — kept in staticfiles for deployments that use this path.)
 
 let billItems = [];
 let purchaseItems = [];
@@ -98,9 +97,40 @@ function removeBillItem(idx) {
     updateTotals();
 }
 
+/* helper to read CSRF cookie (Django default) */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            // Does this cookie string begin with the name we want?
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 $(function () {
     // Selling price recalculation when manual value or MRP/default discount changes
     $('#bill_manual_disc, #bill_mrp, #bill_default_disc').on('input change', recalcSellingPrice);
+
+    // Robust change handler that reads data-default-disc and data-stock safely
+    $('#bill_mrp').on('change', function () {
+        const sel = this;
+        const opt = (sel.selectedOptions && sel.selectedOptions[0]) || sel.options[sel.selectedIndex];
+        if (!opt) return;
+
+        const defaultDisc = opt.getAttribute('data-default-disc') || $(opt).data('defaultDisc') || 0;
+        const stock = opt.getAttribute('data-stock') || $(opt).data('stock') || 0;
+
+        $('#bill_default_disc').val(defaultDisc);
+        $('#bill_stock_qty').text(stock);
+        recalcSellingPrice();
+    });
 
     // Toggle manual discount UI
     $('#bill_manual_disc_check').on('change', function () {
@@ -169,6 +199,66 @@ $(function () {
         updateTotals();
     });
 
+    // Confirm on submit: show confirmation popup and only submit if confirmed
+    $('#billing_form').on('submit', function (e) {
+        e.preventDefault();
+
+        // Basic validation: there must be at least one item
+        if (billItems.length === 0) {
+            alert('Please add at least one item to the bill before submitting.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to submit the bill?')) {
+            return;
+        }
+
+        // Prepare form data and include items_json (ensure server accepts multipart/form-data or JSON)
+        const $form = $(this);
+        const url = $form.attr('action') || window.location.href;
+        // Use FormData so CSRF token from form is included automatically if in a hidden input
+        const formEl = $form.get(0);
+        const formData = new FormData(formEl);
+        // make sure items are included/updated
+        formData.set('items_json', JSON.stringify(billItems));
+
+        const csrftoken = getCookie('csrftoken');
+
+        $.ajax({
+            url: url,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Accept': 'application/json'
+            },
+            success: function (resp) {
+                // Expect JSON response with invoice_url
+                // Example: { success: true, invoice_url: "/invoice/123/print/?download=1" }
+                try {
+                    if (typeof resp === 'string') resp = JSON.parse(resp);
+                } catch (e) { /* ignore */ }
+
+                if (resp && resp.success && resp.invoice_url) {
+                    // Redirect to invoice print page; include download=1 to auto-download PDF
+                    window.location.href = resp.invoice_url;
+                } else if (resp && resp.redirect_url) {
+                    window.location.href = resp.redirect_url;
+                } else {
+                    // fallback: submit normally
+                    // If server doesn't return JSON, do a normal form submit as last resort
+                    formEl.submit();
+                }
+            },
+            error: function (xhr, status, err) {
+                alert('Failed to submit bill. See console for details.');
+                console.error('Billing submit error', status, err, xhr.responseText);
+            }
+        });
+    });
+
     // Purchase MSP = MRP * 1.15 and discount interlink (unchanged)
     function recalcPurchase() {
         const mrp = parseFloat($('#pur_mrp').val()) || 0;
@@ -198,26 +288,6 @@ $(function () {
 
     $('#bill_stock_qty').text(data.stock_qty);
     $('#bill_qty').attr('max', data.stock_qty);
-
-    // Confirm on submit: show confirmation popup and only submit if confirmed
-    $('#billing_form').on('submit', function (e) {
-        // Prevent default submit and show confirm dialog
-        e.preventDefault();
-
-        // Basic validation: there must be at least one item
-        if (billItems.length === 0) {
-            alert('Please add at least one item to the bill before submitting.');
-            return;
-        }
-
-        const confirmed = confirm('Are you sure you want to submit the bill?');
-        if (confirmed) {
-            // Submit the form normally
-            this.submit();
-        } else {
-            // Do nothing — user cancelled
-        }
-    });
 
     // Purchase add button (unchanged)
     $('#btn_add_for_billing').on('click', function () {
@@ -273,4 +343,26 @@ $(function () {
             </tr>
         `);
     });
+});
+
+$("#printBtn").on("click", function () {
+    window.print();
+});
+
+$.ajax({
+    url: "/billing/",
+    type: "POST",
+    data: formData,
+    success: function (resp) {
+        if (resp.success && resp.invoice_url) {
+
+            // Open PDF in a new hidden tab (auto-download)
+            let pdfWindow = window.open(resp.invoice_url, "_blank");
+
+            // After small delay, refresh billing page
+            setTimeout(function () {
+                window.location.href = "/billing/";
+            }, 1500); // 1.5 seconds
+        }
+    }
 });
