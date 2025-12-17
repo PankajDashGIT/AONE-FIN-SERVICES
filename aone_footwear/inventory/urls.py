@@ -63,7 +63,7 @@ urlpatterns = [
 
     # EXPORTS
     path("sales/export/", export_sales_excel, name="sales_export"),
-
+    path("post-login/", post_login_redirect, name="post_login"),
     # ------------------------------------------------
     # COMPANY STATIC INFO PAGES
     # ------------------------------------------------

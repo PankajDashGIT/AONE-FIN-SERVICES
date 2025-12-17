@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib import (messages)
 from django.contrib.auth import login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
 from django.db.models import Q
@@ -27,6 +27,14 @@ from reportlab.pdfgen import canvas
 from .forms import LoginForm, PurchaseBillForm, BrandForm, CategoryForm, SectionForm, SizeForm
 from .forms import SupplierForm, SalesBillForm
 from .models import (Brand, Category, Section, Size, PurchaseItem, Supplier)
+
+
+def is_admin(user):
+    return user.is_authenticated and user.groups.filter(name="ADMIN").exists()
+
+def is_staff_user(user):
+    return user.is_authenticated and user.groups.filter(name="STAFF").exists()
+
 
 # Ensure WEASYPRINT_AVAILABLE is always defined to avoid unresolved reference warnings.
 WEASYPRINT_AVAILABLE = False
@@ -98,6 +106,7 @@ def user_logout(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def supplier_add(request):
     if request.method == "POST":
         form = SupplierForm(request.POST)
@@ -119,6 +128,7 @@ def supplier_add(request):
 
 # ---------- Stock Purchase ----------
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 @transaction.atomic
 def purchase_view(request):
     form = PurchaseBillForm(request.POST or None)
@@ -212,10 +222,18 @@ def purchase_view(request):
     return render(request, "inventory/purchase.html", context)
 
 
+
+@login_required
+def post_login_redirect(request):
+    if is_staff_user(request.user):
+        return redirect("billing")
+    return redirect("sales_dashboard")
+
+
 # ---------- Billing / POS ----------
 
 @login_required
-@login_required
+@user_passes_test(lambda u: is_admin(u) or is_staff_user(u))
 @transaction.atomic
 def billing_view(request):
     """
@@ -521,6 +539,7 @@ def generate_invoice_pdf(request, bill_id):
 # ---------- Stock Ledger ----------
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def ledger_view(request):
     qs = Stock.objects.select_related('product', 'product__brand', 'product__category', 'product__section',
                                       'product__size').all()
@@ -621,6 +640,7 @@ def api_product_info(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_brand_add(request):
     form = BrandForm(request.POST or None)
     if request.method == "POST":
@@ -632,6 +652,7 @@ def master_brand_add(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_category_add(request):
     form = CategoryForm(request.POST or None)
     if request.method == "POST":
@@ -643,6 +664,7 @@ def master_category_add(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_section_add(request):
     form = SectionForm(request.POST or None)
     if request.method == "POST":
@@ -654,6 +676,7 @@ def master_section_add(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_size_add(request):
     form = SizeForm(request.POST or None)
     if request.method == "POST":
@@ -665,11 +688,13 @@ def master_size_add(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_dashboard(request):
     return render(request, "inventory/master/dashboard.html", {"brands": Brand.objects.all(), })
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_size_add(request):
     if request.method == "POST":
         section = Section.objects.get(id=request.POST.get("section"))
@@ -686,6 +711,7 @@ def master_size_add(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
 def sales_dashboard_view(request):
     """Render the Sales Dashboard shell — data loaded via AJAX."""
     return render(request, "inventory/sales_dashboard.html", {})
