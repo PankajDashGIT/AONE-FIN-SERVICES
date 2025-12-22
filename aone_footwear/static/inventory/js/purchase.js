@@ -38,6 +38,7 @@ function recalcPurchaseFields() {
         $("#pur_disc_rs").val(discR.toFixed(2));
         // If billing price field is empty, compute it as mrp - discR
         if (!$("#pur_price").val()) {
+            alert(discR.toFixed(2))
             price = mrp - discR;
             $("#pur_price").val(price.toFixed(2));
         }
@@ -61,7 +62,7 @@ function recalcPurchaseFields() {
     }
 
     // MSP simple rule: price * 1.15 (can be customized)
-    let msp = safeFloat($("#pur_price").val()) * 1.15;
+    let msp = safeFloat($("#pur_price").val()) * .20 + safeFloat($("#pur_price").val());
     $("#pur_msp").val(msp ? msp.toFixed(2) : "");
 }
 

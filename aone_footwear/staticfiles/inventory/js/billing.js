@@ -2,6 +2,7 @@
 
 let billItems = [];
 let purchaseItems = [];
+let data = null;
 
 // global array that holds items already added to the bill
 // billItems should be filled when you click "Add to Bill"
@@ -173,7 +174,7 @@ $(function () {
         const manualDiscRs = manualEnabled ? parseFloat($('#bill_manual_disc').val()) || 0 : 0;
         const maxAllowed = mrp * 0.15;
         if (manualEnabled && manualDiscRs > maxAllowed) {
-            alert(`Manual discount cannot exceed 15% of MRP (Max ₹${maxAllowed.toFixed(2)}).`);
+            alert(`Manual discount cannot exceed  Max ₹${maxAllowed.toFixed(2)}.`);
             return;
         }
 
@@ -286,8 +287,8 @@ $(function () {
 
     $('#pur_mrp, #pur_disc_percent, #pur_disc_rs, #pur_price').on('input', recalcPurchase);
 
-    $('#bill_stock_qty').text(data.stock_qty);
-    $('#bill_qty').attr('max', data.stock_qty);
+//    $('#bill_stock_qty').text(data.stock_qty);
+//    $('#bill_qty').attr('max', data.stock_qty);
 
     // Purchase add button (unchanged)
     $('#btn_add_for_billing').on('click', function () {
@@ -349,20 +350,20 @@ $("#printBtn").on("click", function () {
     window.print();
 });
 
-$.ajax({
-    url: "/billing/",
-    type: "POST",
-    data: formData,
-    success: function (resp) {
-        if (resp.success && resp.invoice_url) {
-
-            // Open PDF in a new hidden tab (auto-download)
-            let pdfWindow = window.open(resp.invoice_url, "_blank");
-
-            // After small delay, refresh billing page
-            setTimeout(function () {
-                window.location.href = "/billing/";
-            }, 1500); // 1.5 seconds
-        }
-    }
-});
+//$.ajax({
+//    url: "/billing/",
+//    type: "POST",
+//    data: formData,
+//    success: function (resp) {
+//        if (resp.success && resp.invoice_url) {
+//
+//            // Open PDF in a new hidden tab (auto-download)
+//            let pdfWindow = window.open(resp.invoice_url, "_blank");
+//
+//            // After small delay, refresh billing page
+//            setTimeout(function () {
+//                window.location.href = "/billing/";
+//            }, 1500); // 1.5 seconds
+//        }
+//    }
+//});

@@ -1,4 +1,5 @@
 # inventory/views.py
+from django.contrib import messages
 from .models import PurchaseBill
 import csv
 import io
@@ -6,7 +7,6 @@ import json
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.contrib import (messages)
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
@@ -21,7 +21,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
+
 from reportlab.pdfgen import canvas
 
 from .forms import LoginForm, PurchaseBillForm, BrandForm, CategoryForm, SectionForm, SizeForm
@@ -639,52 +639,101 @@ def api_product_info(request):
     return JsonResponse(data, safe=False)
 
 
+
+
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def master_brand_add(request):
-    form = BrandForm(request.POST or None)
     if request.method == "POST":
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Brand added successfully!")
-            return redirect("brand_add")
-    return render(request, "inventory/master/brand_add.html", {"form": form})
+        name = request.POST.get("name", "").strip()
+
+        if Brand.objects.filter(name__iexact=name).exists():
+            messages.warning(request, f"Brand '{name}' already exists!")
+        else:
+            Brand.objects.create(name=name)
+            messages.success(request, f"Brand '{name}' added successfully!")
+
+    return redirect("master_dashboard")
 
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def master_category_add(request):
-    form = CategoryForm(request.POST or None)
     if request.method == "POST":
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Category added successfully!")
-            return redirect("category_add")
-    return render(request, "inventory/master/category_add.html", {"form": form})
+        brand_id = request.POST.get("brand")
+        name = request.POST.get("name", "").strip()
+
+        if Category.objects.filter(
+            brand_id=brand_id,
+            name__iexact=name
+        ).exists():
+            messages.warning(request, f"Category '{name}' already exists!")
+        else:
+            Category.objects.create(
+                brand_id=brand_id,
+                name=name
+            )
+            messages.success(request, f"Category '{name}' added successfully!")
+
+    return redirect("master_dashboard")
+
 
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def master_section_add(request):
-    form = SectionForm(request.POST or None)
     if request.method == "POST":
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Section added successfully!")
-            return redirect("section_add")
-    return render(request, "inventory/master/section_add.html", {"form": form})
+        category_id = request.POST.get("category")
+        name = request.POST.get("name", "").strip()
+
+        if Section.objects.filter(
+            category_id=category_id,
+            name__iexact=name
+        ).exists():
+            messages.warning(request, f"Section '{name}' already exists!")
+        else:
+            Section.objects.create(
+                category_id=category_id,
+                name=name
+            )
+            messages.success(request, f"Section '{name}' added successfully!")
+
+    return redirect("master_dashboard")
+
 
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def master_size_add(request):
-    form = SizeForm(request.POST or None)
     if request.method == "POST":
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Size added successfully!")
-            return redirect("size_add")
-    return render(request, "inventory/master/size_add.html", {"form": form})
+        section_id = request.POST.get("section")
+        sizes = request.POST.getlist("sizes")
+
+        section = Section.objects.get(id=section_id)
+
+        added = []
+        skipped = []
+
+        for size_val in sizes:
+            obj, created = Size.objects.get_or_create(
+                section=section,
+                value=size_val
+            )
+            if created:
+                added.append(size_val)
+            else:
+                skipped.append(size_val)
+
+        if added:
+            messages.success(request, f"Sizes added: {', '.join(added)}")
+
+        if skipped:
+            messages.warning(request, f"Sizes already exist: {', '.join(skipped)}")
+
+    return redirect("master_dashboard")
+
 
 
 @login_required
@@ -956,3 +1005,46 @@ def check_purchase_bill(request):
     ).exists()
 
     return JsonResponse({"exists": exists})
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def party_wise_purchase_view(request):
+    suppliers = Supplier.objects.all().order_by("name")
+
+    supplier_id = request.GET.get("supplier")
+    start_date = request.GET.get("start_date")
+    end_date = request.GET.get("end_date")
+
+    items = PurchaseItem.objects.select_related(
+        "purchase",
+        "product__brand",
+        "product__category",
+        "product__section",
+        "product__size",
+        "purchase__supplier"
+    )
+
+    if supplier_id:
+        items = items.filter(purchase__supplier_id=supplier_id)
+
+    if start_date:
+        items = items.filter(purchase__bill_date__date__gte=start_date)
+
+    if end_date:
+        items = items.filter(purchase__bill_date__date__lte=end_date)
+
+    items = items.order_by("-purchase__bill_date")
+
+    context = {
+        "suppliers": suppliers,
+        "items": items,
+        "selected_supplier": supplier_id,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+
+    return render(
+        request,
+        "inventory/reports/party_wise_purchase.html",
+        context
+    )

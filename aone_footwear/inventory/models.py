@@ -193,3 +193,23 @@ class SalesItem(TimeStampedModel):
 
     def __str__(self):
         return f'{self.sales_bill} - {self.product}'
+
+class ExpenseCategory(models.Model):
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Expense(models.Model):
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    expense_date = models.DateField()
+    payment_mode = models.CharField(
+        max_length=20,
+        choices=[('CASH','Cash'), ('BANK','Bank'), ('UPI','UPI')]
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)

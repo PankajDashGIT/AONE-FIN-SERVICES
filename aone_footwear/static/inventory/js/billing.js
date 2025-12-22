@@ -173,7 +173,7 @@ $(function () {
         const manualDiscRs = manualEnabled ? parseFloat($('#bill_manual_disc').val()) || 0 : 0;
         const maxAllowed = mrp * 0.15;
         if (manualEnabled && manualDiscRs > maxAllowed) {
-            alert(`Manual discount cannot exceed 15% of MRP (Max ₹${maxAllowed.toFixed(2)}).`);
+            alert(`Manual discount cannot exceed  Max ₹${maxAllowed.toFixed(2)}.`);
             return;
         }
 
