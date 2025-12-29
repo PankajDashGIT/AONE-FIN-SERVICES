@@ -1,6 +1,7 @@
 {% load static %}
 <!-- inventory/templates/inventory/base.html -->
 <!DOCTYPE html>
+<!--suppress ALL -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -73,42 +74,20 @@
     <!-- SIDEBAR -->
     <div id="sidebar" class="text-white p-3">
         <ul class="nav flex-column gap-1">
-
-            {% if user.groups.all.0.name == "ADMIN" %}
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">📊 Dashboard</a>
-            </li>
+            {% if is_admin %}
+            <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">📊 Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'purchase' %}">📦 Purchases</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'billing' %}">🧾 Billing</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'ledger' %}">📘 Stock Ledger</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'supplier_add' %}">➕ Add Supplier</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'master_dashboard' %}">🗂 Add Master</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'party_wise_purchase' %}">🧾 Party Purchase</a></li>
             {% endif %}
-
-            {% if user.groups.all.0.name == "ADMIN" or user.groups.all.0.name == "STAFF" %}
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'billing' %}">🧾 Billing</a>
-            </li>
-            {% endif %}
-
-            {% if user.groups.all.0.name == "ADMIN" %}
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'purchase' %}">📦 Purchases</a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'ledger' %}">📘 Stock Ledger</a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'supplier_add' %}">➕ Add Supplier</a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'master_dashboard' %}">🗂 Add Master</a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'party_wise_purchase' %}">🧾 Party Purchase</a>
-            </li>
+            {% if is_staff_user %}
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">📊 Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'billing' %}">🧾 Billing</a></li>
 
             {% endif %}
-
         </ul>
 
     </div>
@@ -130,6 +109,14 @@
 </div>
 
 <!-- JS -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const alertBox = document.querySelector(".alert");
+    if (alertBox) {
+        alertBox.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+});
+</script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{% static 'inventory/js/ajax.js' %}"></script>

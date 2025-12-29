@@ -14,7 +14,7 @@
                 <strong>Add Brand</strong>
             </div>
             <div class="card-body">
-                <form method="post" action="{% url 'brand_add' %}">
+                <form method="post" action="{% url 'master_brand_add' %}">
                     {% csrf_token %}
                     <label class="form-label">Brand Name</label>
                     <input type="text" name="name" class="form-control mb-2" required>
@@ -31,7 +31,7 @@
                 <strong>Add Category</strong>
             </div>
             <div class="card-body">
-                <form method="post" action="{% url 'category_add' %}">
+                <form method="post" action="{% url 'master_category_add' %}">
                     {% csrf_token %}
                     <label class="form-label">Brand</label>
                     <select name="brand" class="form-select mb-2" required>
@@ -57,7 +57,7 @@
                 <strong>Add Section</strong>
             </div>
             <div class="card-body">
-                <form method="post" action="{% url 'section_add' %}">
+                <form method="post" action="{% url 'master_section_add' %}">
                     {% csrf_token %}
 
                     <label class="form-label">Brand</label>
@@ -90,7 +90,7 @@
             </div>
             <div class="card-body">
 
-                <form method="post" action="{% url 'size_add' %}">
+                <form method="post" action="{% url 'master_size_add' %}">
                     {% csrf_token %}
 
                     <label class="form-label">Brand</label>

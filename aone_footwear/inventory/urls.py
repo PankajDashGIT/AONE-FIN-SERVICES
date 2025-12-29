@@ -42,14 +42,14 @@ urlpatterns = [
     # MASTER DATA PAGES
     # ------------------------------------------------
     path("master/", master_dashboard, name="master_dashboard"),
-    path("master/", master_brand_add, name="brand_add"),
-    path("master/category/add/", master_category_add, name="category_add"),
-    path("master/section/add/", master_section_add, name="section_add"),
-    path("master/size/add/", master_size_add, name="size_add"),
+    path("master/brand/add/", master_brand_add, name="master_brand_add"),
+    path("master/category/add/", master_category_add, name="master_category_add"),
+    path("master/section/add/", master_section_add, name="master_section_add"),
+    path("master/size/add/", master_size_add, name="master_size_add"),
     path("purchase/check-bill/", check_purchase_bill, name="check_purchase_bill"),
     path("purchase/party-wise/",party_wise_purchase_view,name="party_wise_purchase"),
 
-
+    path("ledger/export/",export_stock_ledger_excel,name="export_stock_ledger_excel"),
     # ------------------------------------------------
     # API ENDPOINTS
     # ------------------------------------------------

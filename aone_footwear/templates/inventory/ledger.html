@@ -1,31 +1,35 @@
 {% extends 'inventory/base.html' %}
 {% load static %}
+
 {% block content %}
 <h3>Stock Ledger / Inventory Summary</h3>
 
-<!-- Filters: GET form so selecting values can be applied server-side -->
+<!-- FILTERS -->
 <form id="ledger_filters" method="get" class="row mb-3">
+
     <div class="col-md-3">
         <label>Brand</label>
         <select id="led_brand" name="brand" class="form-select">
             <option value="">Brand</option>
             {% for b in brands %}
-                <option value="{{ b.id }}" {% if request.GET.brand == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                <option value="{{ b.id }}"
+                    {% if request.GET.brand == b.id|stringformat:"s" %}selected{% endif %}>
+                    {{ b.name }}
+                </option>
             {% endfor %}
         </select>
     </div>
-
-
 
     <div class="col-md-3">
         <label>Category</label>
         <select id="led_category" name="category" class="form-select">
             <option value="">Category</option>
-            {% if categories %}
-                {% for c in categories %}
-                    <option value="{{ c.id }}" {% if request.GET.category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
-                {% endfor %}
-            {% endif %}
+            {% for c in categories %}
+                <option value="{{ c.id }}"
+                    {% if request.GET.category == c.id|stringformat:"s" %}selected{% endif %}>
+                    {{ c.name }}
+                </option>
+            {% endfor %}
         </select>
     </div>
 
@@ -33,11 +37,12 @@
         <label>Section</label>
         <select id="led_section" name="section" class="form-select">
             <option value="">Section</option>
-            {% if sections %}
-                {% for s in sections %}
-                    <option value="{{ s.id }}" {% if request.GET.section == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
-                {% endfor %}
-            {% endif %}
+            {% for s in sections %}
+                <option value="{{ s.id }}"
+                    {% if request.GET.section == s.id|stringformat:"s" %}selected{% endif %}>
+                    {{ s.name }}
+                </option>
+            {% endfor %}
         </select>
     </div>
 
@@ -45,11 +50,12 @@
         <label>Size</label>
         <select id="led_size" name="size" class="form-select">
             <option value="">Size</option>
-            {% if sizes %}
-                {% for sz in sizes %}
-                    <option value="{{ sz.id }}" {% if request.GET.size == sz.id|stringformat:"s" %}selected{% endif %}>{{ sz.value }}</option>
-                {% endfor %}
-            {% endif %}
+            {% for sz in sizes %}
+                <option value="{{ sz.id }}"
+                    {% if request.GET.size == sz.id|stringformat:"s" %}selected{% endif %}>
+                    {{ sz.value }}
+                </option>
+            {% endfor %}
         </select>
     </div>
 
@@ -58,60 +64,109 @@
         <select id="led_supplier" name="supplier" class="form-select">
             <option value="">Supplier</option>
             {% for sup in suppliers %}
-                <option value="{{ sup.id }}" {% if request.GET.supplier == sup.id|stringformat:"s" %}selected{% endif %}>{{ sup.name }}</option>
+                <option value="{{ sup.id }}"
+                    {% if request.GET.supplier == sup.id|stringformat:"s" %}selected{% endif %}>
+                    {{ sup.name }}
+                </option>
             {% endfor %}
         </select>
     </div>
-
-    <!-- small gap and filter button
-    <div class="col-12 mt-2 d-flex justify-content-end">
-        <button type="submit" class="btn btn-primary">Filter</button>
-    </div>-->
 </form>
+<div class="d-flex justify-content-end mb-2">
+    <a href="{% url 'export_stock_ledger_excel' %}?{{ request.GET.urlencode }}"
+       class="btn btn-success btn-sm">
+        ⬇ Export to Excel
+    </a>
+</div>
 
+<!-- LEDGER TABLE -->
 <div class="card p-3">
-    <table class="table table-sm">
+    <table class="table table-sm table-bordered align-middle">
         <thead class="table-dark">
-        <tr>
-            <th>Brand</th><th>Category</th><th>Section</th><th>Size</th>
-            <th>Current Stock</th><th>Valuation (MRP)</th><th>Party / Supplier</th><th>Bill No</th>
-        </tr>
+            <tr>
+                <th>Brand</th>
+                <th>Category</th>
+                <th>Section</th>
+                <th>Size</th>
+                <th class="text-end">Stock</th>
+                <th class="text-end">Valuation (MRP)</th>
+                <th class="text-end">Billing Price</th>
+                <th>Supplier</th>
+                <th>Bill No</th>
+            </tr>
         </thead>
-        <tbody>
 
+        <tbody>
         {% for s in stocks %}
             <tr {% if s.quantity <= 5 %}class="table-danger"{% endif %}>
                 <td>{{ s.product.brand.name }}</td>
                 <td>{{ s.product.category.name }}</td>
                 <td>{{ s.product.section.name }}</td>
                 <td>{{ s.product.size.value }}</td>
-                <td>{{ s.quantity }}</td>
-                <td>
-                    {% if s.valuation is not None %}
-                        ₹ {{ s.valuation|floatformat:2 }}
+
+                <td class="text-end">{{ s.quantity }}</td>
+                <td class="text-end">₹ {{ s.valuation|floatformat:2 }}</td>
+
+                <td class="text-end">
+                    {% if s.billing_price %}
+                        ₹ {{ s.billing_price|floatformat:2 }}
                     {% else %}
                         -
                     {% endif %}
                 </td>
+
                 <td>{{ s.supplier_name|default:"-" }}</td>
                 <td>{{ s.bill_number|default:"-" }}</td>
             </tr>
         {% empty %}
-            <tr><td colspan="8">No stock.</td></tr>
+            <tr>
+                <td colspan="9" class="text-center">No stock found.</td>
+            </tr>
         {% endfor %}
         </tbody>
 
         <tfoot>
             <tr class="table-secondary">
                 <th colspan="4" class="text-end">Totals</th>
-                <th>{{ totals.total_qty|default:0 }}</th>
-                <th>₹ {{ totals.total_valuation|floatformat:2 }}</th>
-                <th colspan="2"></th>
+                <th class="text-end">{{ totals.total_qty }}</th>
+                <th class="text-end">₹ {{ totals.total_valuation|floatformat:2 }}</th>
+                <th colspan="3"></th>
             </tr>
         </tfoot>
     </table>
+
+    <!-- PAGINATION -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-3">
+        <ul class="pagination justify-content-end">
+
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
     <small class="text-muted">
-        Low stock items (&lt;= 5 qty) are highlighted in red.
+        Low stock items (≤ 5 qty) are highlighted in red.
     </small>
 </div>
 {% endblock %}

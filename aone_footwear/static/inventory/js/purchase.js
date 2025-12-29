@@ -32,37 +32,46 @@ function recalcPurchaseFields() {
     let discP = safeFloat($("#pur_disc_percent").val());
     let discR = safeFloat($("#pur_disc_rs").val());
 
-    // If user is editing disc percentage, update disc Rs else vice-versa.
-    if (document.activeElement && document.activeElement.id === "pur_disc_percent") {
+    const activeId = document.activeElement ? document.activeElement.id : "";
+
+    // ---------- When Discount % is edited ----------
+    if (activeId === "pur_disc_percent" && mrp > 0) {
         discR = (mrp * discP) / 100;
+        price = mrp - discR;
+
         $("#pur_disc_rs").val(discR.toFixed(2));
-        // If billing price field is empty, compute it as mrp - discR
-        if (!$("#pur_price").val()) {
-            alert(discR.toFixed(2))
-            price = mrp - discR;
-            $("#pur_price").val(price.toFixed(2));
-        }
-    } else if (document.activeElement && document.activeElement.id === "pur_disc_rs") {
-        if (mrp !== 0) {
-            discP = (discR / mrp) * 100;
-            $("#pur_disc_percent").val(discP.toFixed(2));
-        }
-        if (!$("#pur_price").val()) {
-            price = mrp - discR;
-            $("#pur_price").val(price.toFixed(2));
-        }
-    } else {
-        // if price changed, recompute discRs w.r.t mrp
-        if (mrp !== 0 && $("#pur_price").val()) {
-            discR = mrp - price;
-            $("#pur_disc_rs").val(discR.toFixed(2));
-            let dp = (discR / mrp) * 100;
-            $("#pur_disc_percent").val(dp.toFixed(2));
-        }
+        $("#pur_price").val(price.toFixed(2));
     }
 
-    // MSP simple rule: price * 1.15 (can be customized)
-    let msp = safeFloat($("#pur_price").val()) * .20 + safeFloat($("#pur_price").val());
+    // ---------- When Discount Rs is edited ----------
+    else if (activeId === "pur_disc_rs" && mrp > 0) {
+        discP = (discR / mrp) * 100;
+        price = mrp - discR;
+
+        $("#pur_disc_percent").val(discP.toFixed(2));
+        $("#pur_price").val(price.toFixed(2));
+    }
+
+    // ---------- When Billing Price is edited ----------
+    else if (activeId === "pur_price" && mrp > 0) {
+        discR = mrp - price;
+        discP = (discR / mrp) * 100;
+
+        $("#pur_disc_rs").val(discR.toFixed(2));
+        $("#pur_disc_percent").val(discP.toFixed(2));
+    }
+
+    // ---------- When MRP is edited ----------
+    else if (activeId === "pur_mrp" && mrp > 0 && price > 0) {
+        discR = mrp - price;
+        discP = (discR / mrp) * 100;
+
+        $("#pur_disc_rs").val(discR.toFixed(2));
+        $("#pur_disc_percent").val(discP.toFixed(2));
+    }
+
+    // ---------- MSP ----------
+    let msp = price + (price * 0.20);
     $("#pur_msp").val(msp ? msp.toFixed(2) : "");
 }
 

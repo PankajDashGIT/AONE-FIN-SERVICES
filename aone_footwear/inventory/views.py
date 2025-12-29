@@ -1,6 +1,4 @@
 # inventory/views.py
-from django.contrib import messages
-from .models import PurchaseBill
 import csv
 import io
 import json
@@ -9,30 +7,36 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
 from django.db.models import Q
 from django.db.models.functions import Coalesce
-from django.http import FileResponse, Http404
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.http import JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.http import FileResponse
+from django.http import HttpResponse
+from django.http import HttpResponseBadRequest, HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
-
+# from inventory.utils.export_structure import export_structure_to_excel
+# from inventory.utils.import_structure import import_structure_from_excel
 from reportlab.pdfgen import canvas
 
-from .forms import LoginForm, PurchaseBillForm, BrandForm, CategoryForm, SectionForm, SizeForm
+from .forms import LoginForm, PurchaseBillForm
 from .forms import SupplierForm, SalesBillForm
-from .models import (Brand, Category, Section, Size, PurchaseItem, Supplier)
+from .models import (Category, Section, Size, PurchaseItem, Supplier)
+from .models import PurchaseBill
 
 
 def is_admin(user):
     return user.is_authenticated and user.groups.filter(name="ADMIN").exists()
 
+
 def is_staff_user(user):
+    print(user.is_authenticated, user.groups)
     return user.is_authenticated and user.groups.filter(name="STAFF").exists()
 
 
@@ -93,10 +97,16 @@ def user_login(request):
         return redirect('billing')
 
     form = LoginForm(request, data=request.POST or None)
+
     if request.method == 'POST' and form.is_valid():
         user = form.get_user()
         login(request, user)
+
+        # 🔐 Ensure session key exists immediately
+        request.session.save()
+
         return redirect('sales_dashboard')
+
     return render(request, 'inventory/login.html', {'form': form})
 
 
@@ -106,7 +116,7 @@ def user_logout(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def supplier_add(request):
     if request.method == "POST":
         form = SupplierForm(request.POST)
@@ -128,7 +138,7 @@ def supplier_add(request):
 
 # ---------- Stock Purchase ----------
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 @transaction.atomic
 def purchase_view(request):
     form = PurchaseBillForm(request.POST or None)
@@ -222,7 +232,6 @@ def purchase_view(request):
     return render(request, "inventory/purchase.html", context)
 
 
-
 @login_required
 def post_login_redirect(request):
     if is_staff_user(request.user):
@@ -247,11 +256,7 @@ def billing_view(request):
         brands = Brand.objects.all().order_by('name')
         bill_form = SalesBillForm()
         data = {'stock_qty': 0}
-        return render(request, 'inventory/billing.html', {
-            'brands': brands,
-            'bill_form': bill_form,
-            'data': data
-        })
+        return render(request, 'inventory/billing.html', {'brands': brands, 'bill_form': bill_form, 'data': data})
 
     # --- Only POST beyond this point ---
     if request.method != 'POST':
@@ -295,16 +300,18 @@ def billing_view(request):
             price_unit = to_decimal(it.get('price', 0))
             gst_percent_input = it.get('gst_percent') if it.get('gst_percent') is not None else it.get('gst')
         except Exception:
-            return JsonResponse({'success': False, 'error': f'Invalid data for item #{idx+1}.'}, status=400)
+            return JsonResponse({'success': False, 'error': f'Invalid data for item #{idx + 1}.'}, status=400)
 
         if qty <= 0:
-            return JsonResponse({'success': False, 'error': f'Quantity must be positive for item #{idx+1}.'}, status=400)
+            return JsonResponse({'success': False, 'error': f'Quantity must be positive for item #{idx + 1}.'},
+                                status=400)
 
         # Fetch product (read-only)
         try:
             product = Product.objects.select_related('stock').get(pk=product_id)
         except Product.DoesNotExist:
-            return JsonResponse({'success': False, 'error': f'Product id {product_id} not found (item #{idx+1}).'}, status=400)
+            return JsonResponse({'success': False, 'error': f'Product id {product_id} not found (item #{idx + 1}).'},
+                                status=400)
 
         # Use DB MRP to validate discount limits
         mrp_db = to_decimal(product.mrp)
@@ -314,7 +321,9 @@ def billing_view(request):
         try:
             stock = product.stock
             if stock.quantity < qty:
-                return JsonResponse({'success': False, 'error': f'Not enough stock for product {product}. Available {stock.quantity}.'}, status=400)
+                return JsonResponse(
+                    {'success': False, 'error': f'Not enough stock for product {product}. Available {stock.quantity}.'},
+                    status=400)
         except Stock.DoesNotExist:
             return JsonResponse({'success': False, 'error': f'No stock record for product {product}.'}, status=400)
 
@@ -323,33 +332,19 @@ def billing_view(request):
         max_allowed = (mrp_db * Decimal('0.15')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         if discount_per_unit > max_allowed:
             return JsonResponse({'success': False,
-                                 'error': f'Manual discount on product {product} exceeds 15% of MRP (max ₹{max_allowed}).'}, status=400)
+                                 'error': f'Manual discount on product {product} exceeds 15% of MRP (max ₹{max_allowed}).'},
+                                status=400)
 
-        validated_items.append({
-            'product': product,
-            'qty': qty,
-            'mrp': mrp_db,
-            'price_unit': price_unit,
-            'gst_percent': gst_percent
-        })
+        validated_items.append(
+            {'product': product, 'qty': qty, 'mrp': mrp_db, 'price_unit': price_unit, 'gst_percent': gst_percent})
 
     # --- ALL VALIDATED: perform writes (still inside @transaction.atomic) ---
     bill_number = timezone.now().strftime('B%Y%m%d%H%M%S')
     try:
         # Create sales bill
-        sales_bill = SalesBill.objects.create(
-            bill_number=bill_number,
-            bill_date=timezone.now(),
-            customer=customer,
-            payment_mode=payment_mode,
-            total_qty=0,
-            total_amount=Decimal('0.00'),
-            total_discount=Decimal('0.00'),
-            total_gst=Decimal('0.00'),
-            cgst=Decimal('0.00'),
-            sgst=Decimal('0.00'),
-            created_by=request.user,
-        )
+        sales_bill = SalesBill.objects.create(bill_number=bill_number, bill_date=timezone.now(), customer=customer,
+            payment_mode=payment_mode, total_qty=0, total_amount=Decimal('0.00'), total_discount=Decimal('0.00'),
+            total_gst=Decimal('0.00'), cgst=Decimal('0.00'), sgst=Decimal('0.00'), created_by=request.user, )
 
         total_qty = 0
         total_amount = Decimal('0.00')
@@ -373,21 +368,14 @@ def billing_view(request):
             discount_per_unit = (mrp - price_unit)
             line_discount_amount = (discount_per_unit * qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            line_gst_amount = (price_unit * qty * gst_percent / Decimal('100.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            line_gst_amount = (price_unit * qty * gst_percent / Decimal('100.00')).quantize(Decimal('0.01'),
+                                                                                            rounding=ROUND_HALF_UP)
             line_total = (price_unit * qty + line_gst_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            SalesItem.objects.create(
-                sales_bill=sales_bill,
-                product=product,
-                quantity=qty,
-                mrp=mrp,
-                selling_price=price_unit,
-                discount_percent=((discount_per_unit / mrp) * Decimal('100.00')).quantize(Decimal('0.01')) if mrp > 0 else Decimal('0.00'),
-                discount_amount=line_discount_amount,
-                gst_percent=gst_percent,
-                gst_amount=line_gst_amount,
-                line_total=line_total,
-            )
+            SalesItem.objects.create(sales_bill=sales_bill, product=product, quantity=qty, mrp=mrp,
+                selling_price=price_unit, discount_percent=((discount_per_unit / mrp) * Decimal('100.00')).quantize(
+                    Decimal('0.01')) if mrp > 0 else Decimal('0.00'), discount_amount=line_discount_amount,
+                gst_percent=gst_percent, gst_amount=line_gst_amount, line_total=line_total, )
 
             # Decrement stock and save
             stock.quantity -= qty
@@ -417,7 +405,8 @@ def billing_view(request):
     # Build invoice URL and respond (AJAX vs normal)
     invoice_url = reverse('invoice-pdf', args=[sales_bill.pk])
     invoice_url_with_download = invoice_url
-    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.META.get('HTTP_ACCEPT') == 'application/json'
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.META.get(
+        'HTTP_ACCEPT') == 'application/json'
     if is_ajax:
         return JsonResponse({'success': True, 'invoice_url': invoice_url_with_download})
     else:
@@ -535,21 +524,37 @@ def generate_invoice_pdf(request, bill_id):
     return FileResponse(buffer, as_attachment=True, filename=f"Invoice_{bill.bill_number}.pdf")
 
 
-
 # ---------- Stock Ledger ----------
 
+# @login_required
+# @user_passes_test(lambda u: u.is_superuser)
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
+@transaction.atomic
 def ledger_view(request):
-    qs = Stock.objects.select_related('product', 'product__brand', 'product__category', 'product__section',
-                                      'product__size').all()
+    """
+    Stock Ledger with:
+    - Filters
+    - Latest Billing Price
+    - Latest Supplier & Bill No
+    - Valuation
+    - Pagination
+    """
 
-    # Filters from GET
-    brand_id = request.GET.get('brand')
-    category_id = request.GET.get('category')
-    section_id = request.GET.get('section')
-    size_id = request.GET.get('size')
-    supplier_id = request.GET.get('supplier')
+    # --------------------------------------------------
+    # BASE QUERY
+    # --------------------------------------------------
+    qs = (Stock.objects.select_related("product", "product__brand", "product__category", "product__section",
+        "product__size", ).all())
+
+    # --------------------------------------------------
+    # FILTERS (GET)
+    # --------------------------------------------------
+    brand_id = request.GET.get("brand")
+    category_id = request.GET.get("category")
+    section_id = request.GET.get("section")
+    size_id = request.GET.get("size")
+    supplier_id = request.GET.get("supplier")
 
     if brand_id:
         qs = qs.filter(product__brand_id=brand_id)
@@ -560,40 +565,65 @@ def ledger_view(request):
     if size_id:
         qs = qs.filter(product__size_id=size_id)
 
-    # If supplier filter provided, keep stocks for products that have purchases from that supplier
+    # Supplier filter via PurchaseItem
     if supplier_id:
         qs = qs.filter(product__purchaseitem__purchase__supplier_id=supplier_id).distinct()
 
-    # Create an expression for valuation = quantity * product.mrp with explicit output_field
-    valuation_expr = ExpressionWrapper(F('quantity') * F('product__mrp'),
-                                       output_field=DecimalField(max_digits=14, decimal_places=2))
+    # --------------------------------------------------
+    # VALUATION (Qty × MRP)
+    # --------------------------------------------------
+    valuation_expr = ExpressionWrapper(F("quantity") * F("product__mrp"),
+        output_field=DecimalField(max_digits=14, decimal_places=2), )
 
-    # Annotate per-row valuation (uses Decimal output_field to avoid mixed types)
     qs = qs.annotate(
-        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2)))
+        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2), ))
 
-    # Subquery: get the latest PurchaseItem for this product and fetch purchase.supplier.name and purchase.bill_number
-    latest_pi = PurchaseItem.objects.filter(product=OuterRef('product')).order_by('-purchase__bill_date',
-                                                                                  '-purchase__id')
+    # --------------------------------------------------
+    # SUBQUERIES (LATEST PURCHASE DATA)
+    # --------------------------------------------------
+    latest_pi = (
+        PurchaseItem.objects.filter(product=OuterRef("product")).order_by("-purchase__bill_date", "-purchase__id"))
 
-    qs = qs.annotate(supplier_name=Subquery(latest_pi.values('purchase__supplier__name')[:1]),
-                     bill_number=Subquery(latest_pi.values('purchase__bill_number')[:1]))
+    qs = qs.annotate(supplier_name=Subquery(latest_pi.values("purchase__supplier__name")[:1]),
+        bill_number=Subquery(latest_pi.values("purchase__bill_number")[:1]),
+        billing_price=Subquery(latest_pi.values("billing_price")[:1],
+            output_field=DecimalField(max_digits=10, decimal_places=2), ), )
 
-    # Compute totals from the filtered queryset using the same valuation expression
-    totals = qs.aggregate(total_qty=Coalesce(Sum('quantity'), Value(0)),
-                          total_valuation=Coalesce(Sum(valuation_expr), Value(0),
-                                                   output_field=DecimalField(max_digits=18, decimal_places=2)))
+    # --------------------------------------------------
+    # TOTALS (FOR FOOTER)
+    # --------------------------------------------------
+    totals = qs.aggregate(total_qty=Coalesce(Sum("quantity"), Value(0)),
+        total_valuation=Coalesce(Sum(valuation_expr), Value(0),
+            output_field=DecimalField(max_digits=18, decimal_places=2), ), )
 
-    # Pass dropdown lists if you want server-side filled dependent selects
+    # --------------------------------------------------
+    # PAGINATION
+    # --------------------------------------------------
+    page_number = request.GET.get("page", 1)
+    paginator = Paginator(qs, 25)  # 25 rows per page
+    page_obj = paginator.get_page(page_number)
+
+    # --------------------------------------------------
+    # DROPDOWNS (FILTER SUPPORT)
+    # --------------------------------------------------
     brands = Brand.objects.all()
-    suppliers = Supplier.objects.all()  # party/supplier list for filter
-    categories = Category.objects.filter(brand_id=brand_id) if brand_id else Category.objects.none()
-    sections = Section.objects.filter(category_id=category_id) if category_id else Section.objects.none()
-    sizes = Size.objects.filter(section_id=section_id) if section_id else Size.objects.none()
+    suppliers = Supplier.objects.all()
 
-    context = {'stocks': qs, 'brands': brands, 'suppliers': suppliers, 'categories': categories, 'sections': sections,
-               'sizes': sizes, 'totals': totals, }
-    return render(request, 'inventory/ledger.html', context)
+    categories = (Category.objects.filter(brand_id=brand_id) if brand_id else Category.objects.none())
+    sections = (Section.objects.filter(category_id=category_id) if category_id else Section.objects.none())
+    sizes = (Size.objects.filter(section_id=section_id) if section_id else Size.objects.none())
+
+    # --------------------------------------------------
+    # CONTEXT
+    # --------------------------------------------------
+    context = {"stocks": page_obj,  # paginated queryset
+        "page_obj": page_obj, "paginator": paginator,
+
+        "brands": brands, "suppliers": suppliers, "categories": categories, "sections": sections, "sizes": sizes,
+
+        "totals": totals, }
+
+    return render(request, "inventory/ledger.html", context)
 
 
 # ---------- AJAX APIs ----------
@@ -639,73 +669,95 @@ def api_product_info(request):
     return JsonResponse(data, safe=False)
 
 
+from django.contrib import messages
+from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+from .models import Brand
+from .views import is_admin  # or import from where is_admin is defined
 
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def master_brand_add(request):
-    if request.method == "POST":
-        name = request.POST.get("name", "").strip()
+    """
+    Add a new Brand.
+    - Supports normal POST (redirect + messages)
+    - Supports AJAX POST (JSON response)
+    """
 
-        if Brand.objects.filter(name__iexact=name).exists():
-            messages.warning(request, f"Brand '{name}' already exists!")
-        else:
-            Brand.objects.create(name=name)
-            messages.success(request, f"Brand '{name}' added successfully!")
+    if request.method != "POST":
+        # Direct access not allowed
+        return redirect("master_dashboard")
 
+    name = request.POST.get("name", "").strip()
+
+    # ---------- Validation ----------
+    if not name:
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"success": False, "message": "Brand name is required."}, status=400)
+        messages.error(request, "Brand name is required.")
+        return redirect("master_dashboard")
+
+    # ---------- Duplicate Check ----------
+    if Brand.objects.filter(name__iexact=name).exists():
+        msg = f"Brand '{name}' already exists!"
+
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"success": False, "message": msg}, status=400)
+
+        messages.warning(request, msg)
+        return redirect("master_dashboard")
+
+    # ---------- Save ----------
+    Brand.objects.create(name=name)
+
+    success_msg = f"Brand '{name}' added successfully!"
+
+    # ---------- AJAX Response ----------
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"success": True, "message": success_msg})
+
+    # ---------- Normal Response ----------
+    messages.success(request, success_msg)
     return redirect("master_dashboard")
 
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
-@login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def master_category_add(request):
     if request.method == "POST":
         brand_id = request.POST.get("brand")
         name = request.POST.get("name", "").strip()
 
-        if Category.objects.filter(
-            brand_id=brand_id,
-            name__iexact=name
-        ).exists():
+        if Category.objects.filter(brand_id=brand_id, name__iexact=name).exists():
             messages.warning(request, f"Category '{name}' already exists!")
         else:
-            Category.objects.create(
-                brand_id=brand_id,
-                name=name
-            )
+            Category.objects.create(brand_id=brand_id, name=name)
             messages.success(request, f"Category '{name}' added successfully!")
 
     return redirect("master_dashboard")
 
 
-
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def master_section_add(request):
     if request.method == "POST":
         category_id = request.POST.get("category")
         name = request.POST.get("name", "").strip()
 
-        if Section.objects.filter(
-            category_id=category_id,
-            name__iexact=name
-        ).exists():
+        if Section.objects.filter(category_id=category_id, name__iexact=name).exists():
             messages.warning(request, f"Section '{name}' already exists!")
         else:
-            Section.objects.create(
-                category_id=category_id,
-                name=name
-            )
+            Section.objects.create(category_id=category_id, name=name)
             messages.success(request, f"Section '{name}' added successfully!")
 
     return redirect("master_dashboard")
 
 
-
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(lambda u: is_admin(u) or is_staff_user(u))
 def master_size_add(request):
     if request.method == "POST":
         section_id = request.POST.get("section")
@@ -717,10 +769,7 @@ def master_size_add(request):
         skipped = []
 
         for size_val in sizes:
-            obj, created = Size.objects.get_or_create(
-                section=section,
-                value=size_val
-            )
+            obj, created = Size.objects.get_or_create(section=section, value=size_val)
             if created:
                 added.append(size_val)
             else:
@@ -735,15 +784,14 @@ def master_size_add(request):
     return redirect("master_dashboard")
 
 
-
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def master_dashboard(request):
     return render(request, "inventory/master/dashboard.html", {"brands": Brand.objects.all(), })
 
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def master_size_add(request):
     if request.method == "POST":
         section = Section.objects.get(id=request.POST.get("section"))
@@ -760,13 +808,14 @@ def master_size_add(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@transaction.atomic
 def sales_dashboard_view(request):
     """Render the Sales Dashboard shell — data loaded via AJAX."""
     return render(request, "inventory/sales_dashboard.html", {})
 
 
 @login_required
+@user_passes_test(is_admin)
 def sales_dashboard_data(request):
     """
     AJAX endpoint that returns JSON for:
@@ -814,7 +863,7 @@ def sales_dashboard_data(request):
 
     # Total qty sold (filtered range — from items)
     items_qs = SalesItem.objects.filter(sales_bill__bill_date__date__gte=start_date,
-        sales_bill__bill_date__date__lte=end_date, )
+                                        sales_bill__bill_date__date__lte=end_date, )
     total_qty = items_qs.aggregate(total=Sum("quantity"))["total"] or 0
 
     # --- Payment mode summary (filtered) ---
@@ -838,8 +887,9 @@ def sales_dashboard_data(request):
     # --- Table data (Sales items with bill info) ---
     table_qs = (
         SalesItem.objects.select_related("sales_bill", "product__brand", "product__category", "product__section",
-            "product__size", ).filter(sales_bill__bill_date__date__gte=start_date,
-            sales_bill__bill_date__date__lte=end_date, ).order_by("-sales_bill__bill_date", "-id"))
+                                         "product__size", ).filter(sales_bill__bill_date__date__gte=start_date,
+                                                                   sales_bill__bill_date__date__lte=end_date, ).order_by(
+            "-sales_bill__bill_date", "-id"))
 
     if search:
         table_qs = table_qs.filter(
@@ -858,23 +908,24 @@ def sales_dashboard_data(request):
         line_amount = float(item.line_total or (item.quantity * item.selling_price))
 
         rows.append({"bill_no": bill.bill_number, "date": bill.bill_date.strftime("%d-%m-%Y"),
-            "article": product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
-            "category": product.category.name, "size": product.size.value, "qty": item.quantity, "amount": line_amount,
-            "payment": bill.get_payment_mode_display(), })
+                     "article": product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
+                     "category": product.category.name, "size": product.size.value, "qty": item.quantity,
+                     "amount": line_amount, "payment": bill.get_payment_mode_display(), })
 
     total_pages = (total_rows + page_size - 1) // page_size if page_size else 1
 
     data = {"kpis": {"today_sales": float(today_sales), "last_7_sales": float(last_7_sales),
-        "total_sales": float(total_sales), "total_qty": int(total_qty or 0), }, "payments": payments,
-        "best_selling": best_selling,
-        "table": {"rows": rows, "page": page, "page_size": page_size, "total_rows": total_rows,
-            "total_pages": total_pages, },
-        "meta": {"start_date": start_date.strftime("%d-%m-%Y"), "end_date": end_date.strftime("%d-%m-%Y"), }}
+                     "total_sales": float(total_sales), "total_qty": int(total_qty or 0), }, "payments": payments,
+            "best_selling": best_selling,
+            "table": {"rows": rows, "page": page, "page_size": page_size, "total_rows": total_rows,
+                      "total_pages": total_pages, },
+            "meta": {"start_date": start_date.strftime("%d-%m-%Y"), "end_date": end_date.strftime("%d-%m-%Y"), }}
 
     return JsonResponse(data)
 
 
 @login_required
+@user_passes_test(is_admin)
 def export_sales_excel(request):
     """
     Export filtered sales (same filters as dashboard) to CSV (Excel-friendly).
@@ -897,30 +948,14 @@ def export_sales_excel(request):
     else:
         end_date = today
 
-    qs = (
-        SalesItem.objects
-        .select_related(
-            "sales_bill",
-            "product__brand",
-            "product__category",
-            "product__section",
-            "product__size"
-        )
-        .filter(
-            sales_bill__bill_date__date__gte=start_date,
-            sales_bill__bill_date__date__lte=end_date,
-        )
-        .order_by("-sales_bill__bill_date", "-id")
-    )
+    qs = (SalesItem.objects.select_related("sales_bill", "product__brand", "product__category", "product__section",
+        "product__size").filter(sales_bill__bill_date__date__gte=start_date,
+        sales_bill__bill_date__date__lte=end_date, ).order_by("-sales_bill__bill_date", "-id"))
 
     if search:
-        qs = qs.filter(
-            Q(sales_bill__bill_number__icontains=search) |
-            Q(product__brand__name__icontains=search) |
-            Q(product__category__name__icontains=search) |
-            Q(product__section__name__icontains=search) |
-            Q(product__size__value__icontains=search)
-        )
+        qs = qs.filter(Q(sales_bill__bill_number__icontains=search) | Q(product__brand__name__icontains=search) | Q(
+            product__category__name__icontains=search) | Q(product__section__name__icontains=search) | Q(
+            product__size__value__icontains=search))
 
     # CSV response
     response = HttpResponse(content_type="text/csv")
@@ -932,20 +967,8 @@ def export_sales_excel(request):
     # ===========================
     #   UPDATED COLUMN HEADERS
     # ===========================
-    writer.writerow([
-        "Date",
-        "Bill No",
-        "Article",
-        "Category",
-        "Size",
-        "Qty",
-        "MRP",
-        "Discount",
-        "Total GST",
-        "Total",
-        "Payment Mode",
-        "Customer Mobile Number"
-    ])
+    writer.writerow(["Date", "Bill No", "Article", "Category", "Size", "Qty", "MRP", "Discount", "Total GST", "Total",
+        "Payment Mode", "Customer Mobile Number"])
     for item in qs:
         bill = item.sales_bill
         product = item.product
@@ -956,23 +979,13 @@ def export_sales_excel(request):
         # Compute total GST
         total_gst = float(item.gst_amount)
 
-        writer.writerow([
-            bill.bill_date.strftime("%d-%m-%Y"),
-            bill.bill_number,
+        writer.writerow([bill.bill_date.strftime("%d-%m-%Y"), bill.bill_number,
             product.article_no or f"{product.brand.name}/{product.section.name}/{product.size.value}",
-            product.category.name,
-            product.size.value,
-            item.quantity,
-            f"{item.mrp:.2f}",
-            f"{discount:.2f}",
-            f"{total_gst:.2f}",      # NEW COLUMN
-            f"{line_amount:.2f}",
-            bill.payment_mode,
-            bill.customer.phone if bill.customer else ""
-        ])
+            product.category.name, product.size.value, item.quantity, f"{item.mrp:.2f}", f"{discount:.2f}",
+            f"{total_gst:.2f}",  # NEW COLUMN
+            f"{line_amount:.2f}", bill.payment_mode, bill.customer.phone if bill.customer else ""])
 
     return response
-
 
 
 def landing_view(request):
@@ -985,6 +998,7 @@ def privacy_view(request):
 
 def terms_view(request):
     return render(request, "inventory/terms.html")
+
 
 @login_required()
 def contact_view(request):
@@ -999,15 +1013,13 @@ def check_purchase_bill(request):
     if not supplier_id or not bill_number:
         return JsonResponse({"exists": False})
 
-    exists = PurchaseBill.objects.filter(
-        supplier_id=supplier_id,
-        bill_number__iexact=bill_number
-    ).exists()
+    exists = PurchaseBill.objects.filter(supplier_id=supplier_id, bill_number__iexact=bill_number).exists()
 
     return JsonResponse({"exists": exists})
 
+
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(is_admin)
 def party_wise_purchase_view(request):
     suppliers = Supplier.objects.all().order_by("name")
 
@@ -1015,14 +1027,8 @@ def party_wise_purchase_view(request):
     start_date = request.GET.get("start_date")
     end_date = request.GET.get("end_date")
 
-    items = PurchaseItem.objects.select_related(
-        "purchase",
-        "product__brand",
-        "product__category",
-        "product__section",
-        "product__size",
-        "purchase__supplier"
-    )
+    items = PurchaseItem.objects.select_related("purchase", "product__brand", "product__category", "product__section",
+        "product__size", "purchase__supplier")
 
     if supplier_id:
         items = items.filter(purchase__supplier_id=supplier_id)
@@ -1035,16 +1041,136 @@ def party_wise_purchase_view(request):
 
     items = items.order_by("-purchase__bill_date")
 
-    context = {
-        "suppliers": suppliers,
-        "items": items,
-        "selected_supplier": supplier_id,
-        "start_date": start_date,
-        "end_date": end_date,
-    }
+    context = {"suppliers": suppliers, "items": items, "selected_supplier": supplier_id, "start_date": start_date,
+        "end_date": end_date, }
 
-    return render(
-        request,
-        "inventory/reports/party_wise_purchase.html",
-        context
-    )
+    return render(request, "inventory/reports/party_wise_purchase.html", context)
+
+
+# @login_required
+# @user_passes_test(lambda u: u.is_superuser)
+# def db_structure_admin_view(request):
+#     if request.method == "POST":
+#         excel_file = request.FILES.get("excel_file")
+#
+#         if not excel_file:
+#             messages.error(request, "Please select an Excel file.")
+#             return redirect("db_structure_admin")
+#
+#         file_path = os.path.join(settings.MEDIA_ROOT, excel_file.name)
+#
+#         with open(file_path, "wb+") as f:
+#             for chunk in excel_file.chunks():
+#                 f.write(chunk)
+#
+#         try:
+#             import_structure_from_excel(file_path)
+#             messages.success(request, "Database structure imported successfully!")
+#         except Exception as e:
+#             messages.error(request, f"Import failed: {e}")
+#
+#         return redirect("db_structure_admin")
+#
+#     return render(
+#         request,
+#         "inventory/admin/db_structure.html"
+#     )
+
+
+# @login_required
+# @user_passes_test(lambda u: u.is_superuser)
+# def download_db_structure(request):
+#     file_path = os.path.join(settings.MEDIA_ROOT, "db_structure.xlsx")
+#
+#     export_structure_to_excel(file_path)
+#
+#     with open(file_path, "rb") as f:
+#         response = HttpResponse(
+#             f.read(),
+#             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#         )
+#         response["Content-Disposition"] = 'attachment; filename="db_structure.xlsx"'
+#         return response
+
+
+@login_required
+@user_passes_test(is_admin)
+def export_stock_ledger_excel(request):
+    """
+    Export Stock Ledger to Excel (respects current filters)
+    """
+
+    # --------------------------------------------------
+    # BASE QUERY
+    # --------------------------------------------------
+    qs = (Stock.objects.select_related("product", "product__brand", "product__category", "product__section",
+        "product__size", ).all())
+
+    # --------------------------------------------------
+    # APPLY FILTERS (same as ledger_view)
+    # --------------------------------------------------
+    brand_id = request.GET.get("brand")
+    category_id = request.GET.get("category")
+    section_id = request.GET.get("section")
+    size_id = request.GET.get("size")
+    supplier_id = request.GET.get("supplier")
+
+    if brand_id:
+        qs = qs.filter(product__brand_id=brand_id)
+    if category_id:
+        qs = qs.filter(product__category_id=category_id)
+    if section_id:
+        qs = qs.filter(product__section_id=section_id)
+    if size_id:
+        qs = qs.filter(product__size_id=size_id)
+
+    if supplier_id:
+        qs = qs.filter(product__purchaseitem__purchase__supplier_id=supplier_id).distinct()
+
+    # --------------------------------------------------
+    # VALUATION
+    # --------------------------------------------------
+    valuation_expr = ExpressionWrapper(F("quantity") * F("product__mrp"),
+        output_field=DecimalField(max_digits=14, decimal_places=2), )
+
+    qs = qs.annotate(
+        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2), ))
+
+    # --------------------------------------------------
+    # LATEST PURCHASE DATA
+    # --------------------------------------------------
+    latest_pi = (
+        PurchaseItem.objects.filter(product=OuterRef("product")).order_by("-purchase__bill_date", "-purchase__id"))
+
+    qs = qs.annotate(supplier_name=Subquery(latest_pi.values("purchase__supplier__name")[:1]),
+        bill_number=Subquery(latest_pi.values("purchase__bill_number")[:1]),
+        billing_price=Subquery(latest_pi.values("billing_price")[:1],
+            output_field=DecimalField(max_digits=10, decimal_places=2), ), )
+
+    # --------------------------------------------------
+    # CREATE EXCEL
+    # --------------------------------------------------
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Stock Ledger"
+
+    # HEADER
+    headers = ["Brand", "Category", "Section", "Size", "Current Stock", "Billing Price", "MRP Valuation", "Supplier",
+        "Bill No"]
+    ws.append(headers)
+
+    # ROWS
+    for s in qs:
+        ws.append(
+            [s.product.brand.name, s.product.category.name, s.product.section.name, s.product.size.value, s.quantity,
+                float(s.billing_price) if s.billing_price else "", float(s.valuation) if s.valuation else "",
+                s.supplier_name or "", s.bill_number or "", ])
+
+    # --------------------------------------------------
+    # RESPONSE
+    # --------------------------------------------------
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = 'attachment; filename="stock_ledger.xlsx"'
+
+    wb.save(response)
+    return response
