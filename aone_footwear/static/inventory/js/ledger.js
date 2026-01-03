@@ -1,104 +1,82 @@
-// Cascading selects for ledger page (brand -> category -> section -> size) and auto-submit
-// Expects API endpoints similar to:
-// /api/categories/?brand_id=..., /api/sections/?category_id=..., /api/sizes/?section_id=...
-// Also listens to supplier select changes (no cascade for supplier).
-
 (function () {
-    function fillSelect(el, placeholder, items, textKey='name') {
-        if (!el) return;
-        el.innerHTML = `<option value="">${placeholder}</option>`;
-        if (!items || !items.length) return;
-        items.forEach(it => {
-            const opt = document.createElement('option');
-            opt.value = it.id;
-            opt.textContent = it[textKey] || it.name || it.label || it.value;
-            el.appendChild(opt);
-        });
+
+const form = document.getElementById("ledger_filters");
+
+/* AUTO SUBMIT FILTERS */
+["led_brand","led_category","led_section","led_size","led_supplier"]
+.forEach(id => {
+    const el = document.getElementById(id);
+    el && el.addEventListener("change", () => form.submit());
+});
+
+/* EXPAND / COLLAPSE SINGLE */
+document.addEventListener("click", function (e) {
+    if (!e.target.classList.contains("toggle-details")) return;
+
+    const btn = e.target;
+    const id = btn.dataset.stockId;
+    const row = document.getElementById(`details-${id}`);
+    const content = document.getElementById(`details-content-${id}`);
+
+    if (row.style.display === "table-row") {
+        row.style.display = "none";
+        btn.textContent = "+";
+        return;
     }
 
-    const brandEl = document.getElementById('led_brand');
-    const catEl = document.getElementById('led_category');
-    const secEl = document.getElementById('led_section');
-    const sizeEl = document.getElementById('led_size');
-    const supplierEl = document.getElementById('led_supplier');
-    const form = document.getElementById('ledger_filters');
+    row.style.display = "table-row";
+    btn.textContent = "-";
 
-    if (!brandEl) return;
+    // Load only once
+    if (content.dataset.loaded) return;
 
-    brandEl.addEventListener('change', function () {
-        const brandId = this.value;
-        fillSelect(catEl, 'Category', []);
-        fillSelect(secEl, 'Section', []);
-        fillSelect(sizeEl, 'Size', []);
+    fetch(`/ledger/details/${id}/`)
+        .then(r => r.json())
+        .then(d => {
+            const profitVal = parseFloat(d.profit);
+const profitText = isNaN(profitVal) ? "-" : profitVal.toFixed(2);
 
-        if (!brandId) {
-            form.submit(); // user likely wants results for no-brand selection
-            return;
-        }
+let cls = "text-secondary";
+if (!isNaN(profitVal)) {
+    if (profitVal > 0) cls = "text-success";
+    else if (profitVal < 0) cls = "text-danger";
+}
 
-        fetch(`/api/categories/?brand_id=${encodeURIComponent(brandId)}`)
-            .then(r => r.json())
-            .then(data => {
-                fillSelect(catEl, 'Category', data);
-                // optionally submit automatically
-                form.submit();
-            })
-            .catch(e => {
-                console.error('Failed to load categories', e);
-                form.submit();
-            });
+content.innerHTML = `
+    <table class="table table-sm mb-0">
+        <tr><th>Purchase Date</th><td>${d.purchase_date}</td></tr>
+        <tr><th>Purchase Price</th><td>₹ ${d.purchase_price}</td></tr>
+        <tr><th>Sale Date</th><td>${d.sale_date}</td></tr>
+        <tr><th>Sale Price</th><td>₹ ${d.sale_price}</td></tr>
+        <tr><th>Sale Invoice No</th><td>₹ ${d.sale_invoice}</td></tr>
+        <tr>
+            <th>Profit</th>
+            <td class="${cls}">₹ ${profitText}</td>
+        </tr>
+    </table>
+`;
+            content.dataset.loaded = "1";
+        });
+});
+
+
+/* EXPAND ALL */
+document.getElementById("expandAll")?.addEventListener("click", () => {
+    document.querySelectorAll(".toggle-details").forEach(btn => {
+        const id = btn.dataset.stockId;
+        const row = document.getElementById(`details-${id}`);
+        if (row.style.display !== "table-row") btn.click();
     });
+});
 
-    catEl && catEl.addEventListener('change', function () {
-        const catId = this.value;
-        fillSelect(secEl, 'Section', []);
-        fillSelect(sizeEl, 'Size', []);
-
-        if (!catId) {
-            form.submit();
-            return;
-        }
-
-        fetch(`/api/sections/?category_id=${encodeURIComponent(catId)}`)
-            .then(r => r.json())
-            .then(data => {
-                fillSelect(secEl, 'Section', data);
-                form.submit();
-            })
-            .catch(e => {
-                console.error('Failed to load sections', e);
-                form.submit();
-            });
+/* collapseAll */
+document.getElementById("collapseAll")?.addEventListener("click", () => {
+    document.querySelectorAll(".toggle-details").forEach(btn => {
+        const id = btn.dataset.stockId;
+        const row = document.getElementById(`details-${id}`);
+        if (row.style.display === "table-row") btn.click();
     });
+});
 
-    secEl && secEl.addEventListener('change', function () {
-        const secId = this.value;
-        fillSelect(sizeEl, 'Size', []);
 
-        if (!secId) {
-            form.submit();
-            return;
-        }
-
-        fetch(`/api/sizes/?section_id=${encodeURIComponent(secId)}`)
-            .then(r => r.json())
-            .then(data => {
-                fillSelect(sizeEl, 'Size', data, 'label');
-                form.submit();
-            })
-            .catch(e => {
-                console.error('Failed to load sizes', e);
-                form.submit();
-            });
-    });
-
-    // If supplier changes, just submit (no cascading)
-    supplierEl && supplierEl.addEventListener('change', function () {
-        form.submit();
-    });
-
-    // If size changed, submit to apply filters
-    sizeEl && sizeEl.addEventListener('change', function () {
-        form.submit();
-    });
 })();

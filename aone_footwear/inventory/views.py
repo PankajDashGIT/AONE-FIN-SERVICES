@@ -1,4 +1,5 @@
 # inventory/views.py
+from django.views.decorators.cache import cache_page
 import csv
 import io
 import json
@@ -27,7 +28,7 @@ from reportlab.pdfgen import canvas
 
 from .forms import LoginForm, PurchaseBillForm
 from .forms import SupplierForm, SalesBillForm
-from .models import (Category, Section, Size, PurchaseItem, Supplier)
+from .models import (Category, Section, Size, PurchaseItem, Supplier, Stock, SalesItem, SalesBill)
 from .models import PurchaseBill
 
 
@@ -89,6 +90,72 @@ def invoice_print(request, pk):
         response = HttpResponse(pdf_file, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+
+
+@cache_page(60 * 5)
+def ledger_details(request, stock_id):
+    # Get stock + product
+    stock = get_object_or_404(
+        Stock.objects.select_related("product"),
+        id=stock_id
+    )
+
+    product = stock.product
+
+    # -------------------------------
+    # Latest PURCHASE (if any)
+    # -------------------------------
+    last_purchase = (
+        PurchaseItem.objects
+        .select_related("purchase")
+        .filter(product=product)
+        .order_by("-purchase__bill_date")
+        .first()
+    )
+
+    purchase_price = last_purchase.billing_price if last_purchase else 0
+    purchase_date = (
+        last_purchase.purchase.bill_date.strftime("%d-%m-%Y")
+        if last_purchase else "-"
+    )
+
+    # -------------------------------
+    # Latest SALE (if any)
+    # -------------------------------
+    last_sale = (
+        SalesItem.objects
+        .select_related("sales_bill")
+        .filter(product=product)
+        .order_by("-sales_bill__bill_date")
+        .first()
+    )
+
+    sale_price = last_sale.selling_price if last_sale else 0
+    sale_date = (
+        last_sale.sales_bill.bill_date.strftime("%d-%m-%Y")
+        if last_sale else "-"
+    )
+    sale_invoice = (
+        last_sale.sales_bill.bill_number
+        if last_sale else "-"
+    )
+
+    # -------------------------------
+    # Profit
+    # -------------------------------
+    profit = sale_price - purchase_price
+
+    return JsonResponse({
+        "purchase_date": purchase_date,
+        "purchase_price": round(purchase_price, 2),
+
+        "sale_date": sale_date,
+        "sale_price": round(sale_price, 2) if sale_price else "-",
+        "sale_invoice": sale_invoice,  # ✅ NEW
+
+        "profit": round(profit, 2),
+    })
+
 
 
 # ---------- Auth ----------

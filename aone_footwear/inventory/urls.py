@@ -21,7 +21,7 @@ urlpatterns = [
         ),
         name="login"
     ),
-
+    path("ledger/details/<int:stock_id>/", ledger_details),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
 
     # ------------------------------------------------
