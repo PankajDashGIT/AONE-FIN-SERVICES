@@ -23,12 +23,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-%v*ek3erncfr2b$6zv#xblt$)tano=1ph4@)suxq#@t3hkd^h_'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['pankajaone.pythonanywhere.com']
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = "/post-login/"
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Application definition
 
@@ -39,7 +42,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'inventory',
     "inventory.apps.InventoryConfig",
 ]
 
@@ -52,11 +54,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_SAVE_EVERY_REQUEST = True
-
-SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 ROOT_URLCONF = 'aone_footwear.urls'
 
@@ -71,7 +68,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                "inventory.context_processors.user_roles",
             ],
         },
     },
@@ -87,18 +83,16 @@ WSGI_APPLICATION = 'aone_footwear.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        # 'ENGINE': 'mysql.connector.django',
-        'NAME': 'aone_footwear',
-        'USER': 'root',
+        'NAME': 'pankajaone$aonefootwear',
+        'USER': 'pankajaone',
         'PASSWORD': 'Dcpaugweder@123',
-        'HOST': 'localhost',
+        'HOST': 'pankajaone.mysql.pythonanywhere-services.com',
         'PORT': '3306',
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
     }
 }
-
 
 
 # Password validation
