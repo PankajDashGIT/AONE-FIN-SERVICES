@@ -83,6 +83,15 @@ urlpatterns = [
     # ------------------------------------------------
     # EXPENSE MANAGEMENT
     # ------------------------------------------------
-    path("system/expenses/", expense_management_view, name="expense_management"),
+    # path("system/expenses/", expense_management_view, name="expense_management"),
     path("api/expenses/chart/", expense_chart_data, name="expense_chart_data"),
+    path("system/expenses/", expense_management_view, name="expense_management"),
+    path("system/expenses/add/", expense_add, name="expense_add"),
+    path("system/expenses/approve/<int:expense_id>/", expense_approve, name="expense_approve"),
+    path("system/expenses/edit/<int:expense_id>/", expense_edit, name="expense_edit"),
+    path("system/expenses/delete/<int:expense_id>/", expense_delete, name="expense_delete"),
+    path("system/expenses/export/", export_expenses_csv, name="export_expenses_csv"),
+    path("api/expenses/monthly/", monthly_expense_report, name="monthly_expense_report"),
+    path("api/dashboard/profit/", profit_dashboard_data, name="profit_dashboard_data"),
+
 ]

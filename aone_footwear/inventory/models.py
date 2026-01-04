@@ -210,6 +210,7 @@ class Expense(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     expense_date = models.DateField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    approved = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.category} - {self.amount}"

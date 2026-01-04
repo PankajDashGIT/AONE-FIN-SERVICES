@@ -1,5 +1,6 @@
 # inventory/views.py
 from django.views.decorators.cache import cache_page
+from django.db.models.functions import TruncMonth
 import csv
 import io
 import json
@@ -13,23 +14,18 @@ from django.db import transaction
 from django.db.models import F, Subquery, OuterRef, DecimalField, Value, ExpressionWrapper, Sum
 from django.db.models import Q
 from django.db.models.functions import Coalesce
-from django.http import FileResponse
-from django.http import HttpResponse
-from django.http import HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
+from django.http import FileResponse, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, HttpResponseForbidden
+
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from reportlab.lib.pagesizes import A4
-# from inventory.utils.export_structure import export_structure_to_excel
-# from inventory.utils.import_structure import import_structure_from_excel
+
 from reportlab.pdfgen import canvas
 
 from .forms import LoginForm, PurchaseBillForm
 from .forms import SupplierForm, SalesBillForm
-from .models import (Category, Section, Size, PurchaseItem, Supplier, Expense)
-from .models import PurchaseBill
+from .models import (Category, Section, Size, PurchaseItem, Supplier, Expense, PurchaseBill)
 
 
 def is_admin(user):
@@ -1398,27 +1394,31 @@ def staff_toggle_active(request, user_id):
 
 
 @login_required
-@user_passes_test(is_admin)
 def expense_management_view(request):
 
-    if request.method == "POST":
-        Expense.objects.create(
-            category=request.POST["category"],
-            description=request.POST.get("description", ""),
-            amount=request.POST["amount"],
-            created_by=request.user,
-        )
-        return redirect("expense_management")
+    qs = Expense.objects.all()
 
-    expenses = Expense.objects.order_by("-expense_date")[:50]
+    # Date filters
+    start = request.GET.get("start_date")
+    end = request.GET.get("end_date")
+
+    if start and end:
+        qs = qs.filter(expense_date__range=[start, end])
+
+    # STAFF → only their expenses
+    if not is_admin(request.user):
+        qs = qs.filter(created_by=request.user)
+
+    qs = qs.order_by("-expense_date")
 
     return render(request, "inventory/expense.html", {
-        "expenses": expenses,
+        "expenses": qs,
         "categories": Expense.CATEGORY_CHOICES,
+        "is_admin": is_admin(request.user),
     })
 
 @login_required
-@user_passes_test(is_admin)
+# @user_passes_test(is_admin)
 def expense_chart_data(request):
     today = timezone.localdate()
     start_date = today - timedelta(days=6)
@@ -1435,3 +1435,104 @@ def expense_chart_data(request):
         "labels": [q["category"] for q in qs],
         "data": [float(q["total"]) for q in qs],
     })
+
+
+@login_required
+def expense_add(request):
+    if request.method == "POST":
+        Expense.objects.create(
+            category=request.POST["category"],
+            description=request.POST.get("description", ""),
+            amount=request.POST["amount"],
+            created_by=request.user,
+            approved=request.user.is_superuser,  # Admin auto-approved
+        )
+        return redirect("expense_management")
+
+
+@login_required
+@user_passes_test(is_admin)
+def expense_approve(request, expense_id):
+    exp = get_object_or_404(Expense, id=expense_id)
+    exp.approved = True
+    exp.save()
+    return redirect("expense_management")
+
+
+@login_required
+@user_passes_test(is_admin)
+def monthly_expense_report(request):
+    data = (
+        Expense.objects
+        .filter(approved=True)
+        .annotate(month=TruncMonth("expense_date"))
+        .values("month")
+        .annotate(total=Sum("amount"))
+        .order_by("-month")
+    )
+    return JsonResponse(list(data), safe=False)
+
+
+@login_required
+def expense_edit(request, expense_id):
+    exp = get_object_or_404(Expense, id=expense_id)
+
+    if exp.created_by != request.user and not is_admin(request.user):
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        exp.category = request.POST["category"]
+        exp.description = request.POST["description"]
+        exp.amount = request.POST["amount"]
+        exp.approved = False   # re-approval required
+        exp.save()
+        return redirect("expense_management")
+
+
+@login_required
+@user_passes_test(is_admin)
+def export_expenses_csv(request):
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="expenses.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(["Date", "Category", "Description", "Amount", "User", "Approved"])
+
+    for e in Expense.objects.all():
+        writer.writerow([
+            e.expense_date,
+            e.category,
+            e.description,
+            e.amount,
+            e.created_by.username,
+            "Yes" if e.approved else "No",
+        ])
+
+    return response
+
+@login_required
+@user_passes_test(is_admin)
+def profit_dashboard_data(request):
+    total_sales = (
+        SalesBill.objects
+        .aggregate(total=Sum("total_amount"))["total"] or 0
+    )
+
+    total_expenses = (
+        Expense.objects
+        .filter(approved=True)
+        .aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    return JsonResponse({
+        "sales": float(total_sales),
+        "expenses": float(total_expenses),
+        "profit": float(total_sales - total_expenses),
+    })
+
+@login_required
+@user_passes_test(is_admin)
+def expense_delete(request, expense_id):
+    Expense.objects.filter(id=expense_id).delete()
+    return redirect("expense_management")

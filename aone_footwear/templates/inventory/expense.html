@@ -2,68 +2,164 @@
 {% load static %}
 
 {% block content %}
-<h3>Expense Management</h3>
+<h3 class="mb-3">Expense Management</h3>
+
+<!-- FILTER + ACTIONS -->
+<form method="get" class="row g-2 mb-3 align-items-end">
+
+    <div class="col-md-3">
+        <label class="form-label">From Date</label>
+        <input type="date" name="start_date" class="form-control"
+               value="{{ request.GET.start_date }}">
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">To Date</label>
+        <input type="date" name="end_date" class="form-control"
+               value="{{ request.GET.end_date }}">
+    </div>
+
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100">Filter</button>
+    </div>
+
+    {% if is_admin %}
+    <div class="col-md-2">
+        <a href="{% url 'export_expenses_csv' %}" class="btn btn-success w-100">
+            ⬇ Export CSV
+        </a>
+    </div>
+    {% endif %}
+</form>
 
 <div class="row">
-    <!-- FORM -->
+
+    <!-- ADD EXPENSE -->
     <div class="col-md-4">
-        <form method="post" class="card p-3 mb-4">
-            {% csrf_token %}
-            <div class="mb-2">
-                <label>Category</label>
-                <select name="category" class="form-select" required>
-                    {% for key, val in categories %}
-                        <option value="{{ key }}">{{ val }}</option>
-                    {% endfor %}
-                </select>
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white">
+                Add Expense
             </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'expense_add' %}">
+                    {% csrf_token %}
 
-            <div class="mb-2">
-                <label>Description</label>
-                <input type="text" name="description" class="form-control">
+                    <div class="mb-2">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select" required>
+                            {% for key, val in categories %}
+                                <option value="{{ key }}">{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Description</label>
+                        <input type="text" name="description"
+                               class="form-control"
+                               placeholder="Optional">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Amount</label>
+                        <input type="number" step="0.01" name="amount"
+                               class="form-control" required>
+                    </div>
+
+                    <button class="btn btn-primary w-100">
+                        ➕ Add Expense
+                    </button>
+                </form>
             </div>
-
-            <div class="mb-2">
-                <label>Amount</label>
-                <input type="number" step="0.01" name="amount" class="form-control" required>
-            </div>
-
-            <button class="btn btn-primary w-100">Add Expense</button>
-        </form>
+        </div>
     </div>
 
     <!-- GRAPH -->
     <div class="col-md-8">
-        <div class="card p-3">
-            <h6>Last 7 Days Expense by Category</h6>
-            <canvas id="expenseChart" height="120"></canvas>
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white">
+                Last 7 Days Expense by Category
+            </div>
+            <div class="card-body">
+                <canvas id="expenseChart" height="120"></canvas>
+            </div>
         </div>
     </div>
+
 </div>
 
-<hr>
+<!-- EXPENSE TABLE -->
+<div class="card shadow-sm">
+    <div class="card-header bg-secondary text-white">
+        Expense List
+    </div>
+    <div class="card-body p-0">
 
-<h5>Recent Expenses</h5>
-<table class="table table-sm table-bordered">
-    <thead class="table-dark">
-        <tr>
-            <th>Date</th>
-            <th>Category</th>
-            <th>Description</th>
-            <th class="text-end">Amount</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for e in expenses %}
-        <tr>
-            <td>{{ e.expense_date }}</td>
-            <td>{{ e.category }}</td>
-            <td>{{ e.description }}</td>
-            <td class="text-end">{{ e.amount }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+        <table class="table table-sm table-bordered mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th>Status</th>
+                    <th width="180">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td>{{ e.expense_date }}</td>
+                    <td>{{ e.category }}</td>
+                    <td>{{ e.description }}</td>
+                    <td class="text-end">{{ e.amount }}</td>
+
+                    <td>
+                        {% if e.approved %}
+                            <span class="badge bg-success">Approved</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">
+                                Pending
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if is_admin %}
+                            {% if not e.approved %}
+                                <a href="{% url 'expense_approve' e.id %}"
+                                   class="btn btn-sm btn-success">
+                                    Approve
+                                </a>
+                            {% endif %}
+                            <a href="{% url 'expense_delete' e.id %}"
+                               class="btn btn-sm btn-danger"
+                               onclick="return confirm('Delete this expense?')">
+                                Delete
+                            </a>
+                        {% endif %}
+
+                        {% if e.created_by == request.user or is_admin %}
+                            <a href="{% url 'expense_edit' e.id %}"
+                               class="btn btn-sm btn-warning">
+                                Edit
+                            </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6"
+                        class="text-center text-muted py-3">
+                        No expenses found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+</div>
 
 {% endblock %}
 
