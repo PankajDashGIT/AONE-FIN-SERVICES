@@ -28,7 +28,7 @@ from reportlab.pdfgen import canvas
 
 from .forms import LoginForm, PurchaseBillForm
 from .forms import SupplierForm, SalesBillForm
-from .models import (Category, Section, Size, PurchaseItem, Supplier, Stock, SalesItem, SalesBill)
+from .models import (Category, Section, Size, PurchaseItem, Supplier, Expense)
 from .models import PurchaseBill
 
 
@@ -1215,19 +1215,28 @@ def party_wise_purchase_view(request):
 
 @login_required
 @user_passes_test(is_admin)
-def export_stock_ledger_excel(request):
+def export_stock_ledger_csv(request):
     """
-    Export Stock Ledger to Excel (respects current filters)
+    Export Stock Ledger to CSV (respects current filters)
     """
 
     # --------------------------------------------------
     # BASE QUERY
     # --------------------------------------------------
-    qs = (Stock.objects.select_related("product", "product__brand", "product__category", "product__section",
-        "product__size", ).all())
+    qs = (
+        Stock.objects
+        .select_related(
+            "product",
+            "product__brand",
+            "product__category",
+            "product__section",
+            "product__size",
+        )
+        .all()
+    )
 
     # --------------------------------------------------
-    # APPLY FILTERS (same as ledger_view)
+    # APPLY FILTERS
     # --------------------------------------------------
     brand_id = request.GET.get("brand")
     category_id = request.GET.get("category")
@@ -1243,54 +1252,186 @@ def export_stock_ledger_excel(request):
         qs = qs.filter(product__section_id=section_id)
     if size_id:
         qs = qs.filter(product__size_id=size_id)
-
     if supplier_id:
-        qs = qs.filter(product__purchaseitem__purchase__supplier_id=supplier_id).distinct()
+        qs = qs.filter(
+            product__purchaseitem__purchase__supplier_id=supplier_id
+        ).distinct()
 
     # --------------------------------------------------
-    # VALUATION
+    # VALUATION (MRP × STOCK)
     # --------------------------------------------------
-    valuation_expr = ExpressionWrapper(F("quantity") * F("product__mrp"),
-        output_field=DecimalField(max_digits=14, decimal_places=2), )
+    valuation_expr = ExpressionWrapper(
+        F("quantity") * F("product__mrp"),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
 
     qs = qs.annotate(
-        valuation=Coalesce(valuation_expr, Value(0), output_field=DecimalField(max_digits=14, decimal_places=2), ))
+        valuation=Coalesce(
+            valuation_expr,
+            Value(0),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        )
+    )
 
     # --------------------------------------------------
     # LATEST PURCHASE DATA
     # --------------------------------------------------
     latest_pi = (
-        PurchaseItem.objects.filter(product=OuterRef("product")).order_by("-purchase__bill_date", "-purchase__id"))
+        PurchaseItem.objects
+        .filter(product=OuterRef("product"))
+        .order_by("-purchase__bill_date", "-purchase__id")
+    )
 
-    qs = qs.annotate(supplier_name=Subquery(latest_pi.values("purchase__supplier__name")[:1]),
-        bill_number=Subquery(latest_pi.values("purchase__bill_number")[:1]),
-        billing_price=Subquery(latest_pi.values("billing_price")[:1],
-            output_field=DecimalField(max_digits=10, decimal_places=2), ), )
+    qs = qs.annotate(
+        supplier_name=Subquery(
+            latest_pi.values("purchase__supplier__name")[:1]
+        ),
+        bill_number=Subquery(
+            latest_pi.values("purchase__bill_number")[:1]
+        ),
+        billing_price=Subquery(
+            latest_pi.values("billing_price")[:1],
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        ),
+    )
 
     # --------------------------------------------------
-    # CREATE EXCEL
+    # CREATE CSV RESPONSE
     # --------------------------------------------------
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Stock Ledger"
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="stock_ledger.csv"'
+
+    writer = csv.writer(response)
 
     # HEADER
-    headers = ["Brand", "Category", "Section", "Size", "Current Stock", "Billing Price", "MRP Valuation", "Supplier",
-        "Bill No"]
-    ws.append(headers)
+    writer.writerow([
+        "Brand",
+        "Category",
+        "Section",
+        "Size",
+        "Current Stock",
+        "Billing Price",
+        "MRP Valuation",
+        "Supplier",
+        "Bill No",
+    ])
 
     # ROWS
     for s in qs:
-        ws.append(
-            [s.product.brand.name, s.product.category.name, s.product.section.name, s.product.size.value, s.quantity,
-                float(s.billing_price) if s.billing_price else "", float(s.valuation) if s.valuation else "",
-                s.supplier_name or "", s.bill_number or "", ])
+        writer.writerow([
+            s.product.brand.name,
+            s.product.category.name,
+            s.product.section.name,
+            s.product.size.value,
+            s.quantity,
+            float(s.billing_price) if s.billing_price else "",
+            float(s.valuation) if s.valuation else "",
+            s.supplier_name or "",
+            s.bill_number or "",
+        ])
 
-    # --------------------------------------------------
-    # RESPONSE
-    # --------------------------------------------------
-    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = 'attachment; filename="stock_ledger.xlsx"'
-
-    wb.save(response)
     return response
+
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import User, Group
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+
+def is_admin(user):
+    return user.groups.filter(name="ADMIN").exists() or user.is_superuser
+
+
+@login_required
+@user_passes_test(is_admin)
+def staff_management_view(request):
+    staff_group = Group.objects.get(name="STAFF")
+
+    users = (
+        User.objects
+        .filter(groups=staff_group)
+        .order_by("username")
+    )
+
+    return render(request, "admin/staff_management.html", {
+        "users": users
+    })
+
+@login_required
+@user_passes_test(is_admin)
+def staff_add_edit_view(request, user_id=None):
+    staff_group = Group.objects.get(name="STAFF")
+    user = get_object_or_404(User, id=user_id) if user_id else None
+
+    if request.method == "POST":
+        username = request.POST["username"]
+        email = request.POST.get("email", "")
+        password = request.POST.get("password")
+
+        if user:
+            user.username = username
+            user.email = email
+            if password:
+                user.set_password(password)
+            user.save()
+        else:
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password
+            )
+            user.groups.add(staff_group)
+
+        messages.success(request, "Staff saved successfully")
+        return redirect("staff_management")
+
+    return render(request, "admin/staff_form.html", {
+        "user": user
+    })
+
+@login_required
+@user_passes_test(is_admin)
+def staff_toggle_active(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    user.is_active = not user.is_active
+    user.save()
+    return redirect("staff_management")
+
+
+@login_required
+@user_passes_test(is_admin)
+def expense_management_view(request):
+
+    if request.method == "POST":
+        Expense.objects.create(
+            category=request.POST["category"],
+            description=request.POST.get("description", ""),
+            amount=request.POST["amount"],
+            created_by=request.user,
+        )
+        return redirect("expense_management")
+
+    expenses = Expense.objects.order_by("-expense_date")[:50]
+
+    return render(request, "inventory/expense.html", {
+        "expenses": expenses,
+        "categories": Expense.CATEGORY_CHOICES,
+    })
+
+@login_required
+@user_passes_test(is_admin)
+def expense_chart_data(request):
+    today = timezone.localdate()
+    start_date = today - timedelta(days=6)
+
+    qs = (
+        Expense.objects
+        .filter(expense_date__gte=start_date)
+        .values("category")
+        .annotate(total=Sum("amount"))
+        .order_by("category")
+    )
+
+    return JsonResponse({
+        "labels": [q["category"] for q in qs],
+        "data": [float(q["total"]) for q in qs],
+    })

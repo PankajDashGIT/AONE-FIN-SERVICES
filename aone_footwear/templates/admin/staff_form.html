@@ -1,0 +1,30 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+<h3>{% if user %}Edit{% else %}Add{% endif %} Staff</h3>
+
+<form method="post" class="card p-4">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label>Username</label>
+        <input type="text" name="username" class="form-control"
+               value="{{ user.username|default:'' }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label>Email</label>
+        <input type="email" name="email" class="form-control"
+               value="{{ user.email|default:'' }}">
+    </div>
+
+    <div class="mb-3">
+        <label>Password {% if user %}(leave blank to keep unchanged){% endif %}</label>
+        <input type="password" name="password" class="form-control"
+               {% if not user %}required{% endif %}>
+    </div>
+
+    <button class="btn btn-success">Save</button>
+    <a href="{% url 'staff_management' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

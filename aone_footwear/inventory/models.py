@@ -194,22 +194,22 @@ class SalesItem(TimeStampedModel):
     def __str__(self):
         return f'{self.sales_bill} - {self.product}'
 
-class ExpenseCategory(models.Model):
-    name = models.CharField(max_length=100)
-    is_active = models.BooleanField(default=True)
+class Expense(models.Model):
+    CATEGORY_CHOICES = [
+        ("Rent", "Rent"),
+        ("Salary", "Salary"),
+        ("Electricity", "Electricity"),
+        ("Transport", "Transport"),
+        ("Petrol", 'Petrol'),
+        ("Staff Advance", 'Staff Advance'),
+        ("Misc", "Misc"),
+    ]
+
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    description = models.CharField(max_length=255, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    expense_date = models.DateField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
 
     def __str__(self):
-        return self.name
-
-
-class Expense(models.Model):
-    category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    expense_date = models.DateField()
-    payment_mode = models.CharField(
-        max_length=20,
-        choices=[('CASH','Cash'), ('BANK','Bank'), ('UPI','UPI')]
-    )
-    notes = models.TextField(blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
-    created_at = models.DateTimeField(auto_now_add=True)
+        return f"{self.category} - {self.amount}"

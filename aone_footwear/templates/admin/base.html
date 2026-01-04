@@ -1,6 +1,6 @@
 {% load static %}
 <!-- inventory/templates/inventory/base.html -->
-<!DOCTYPE html>
+
 <!--suppress ALL -->
 <html lang="en">
 <head>
@@ -73,90 +73,24 @@
 
     <!-- SIDEBAR -->
     <div id="sidebar" class="text-white p-3">
-    <ul class="nav flex-column gap-1">
+        <ul class="nav flex-column gap-1">
+            {% if is_admin %}
+            <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">📊 Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'purchase' %}">📦 Purchases</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'billing' %}">🧾 Billing</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'ledger' %}">📘 Stock Ledger</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'supplier_add' %}">➕ Add Supplier</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'master_dashboard' %}">🗂 Add Master</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'party_wise_purchase' %}">🧾 Party Purchase</a></li>
+            {% endif %}
+            {% if is_staff_user %}
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">📊 Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link sidebar-link" href="{% url 'billing' %}">🧾 Billing</a></li>
 
-        {% if is_admin %}
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">
-                    📊 Dashboard
-                </a>
-            </li>
+            {% endif %}
+        </ul>
 
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'purchase' %}">
-                    📦 Purchases
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'billing' %}">
-                    🧾 Billing
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'ledger' %}">
-                    📘 Stock Ledger
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'party_wise_purchase' %}">
-                    🧾 Party Purchase
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'supplier_add' %}">
-                    ➕ Add Supplier
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'master_dashboard' %}">
-                    🗂 Master Setup
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'expense_management' %}">
-                    💸 Manage Expense
-                </a>
-            </li>
-
-            <!-- ✅ NEW: STAFF MANAGEMENT -->
-            <hr class="text-secondary my-2">
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'staff_management' %}">
-                    👥 Manage Staff
-                </a>
-            </li>
-        {% endif %}
-
-        {% if is_staff_user %}
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'sales_dashboard' %}">
-                    📊 Dashboard
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'billing' %}">
-                    🧾 Billing
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link sidebar-link" href="{% url 'expense_management' %}">
-                    💸 Expense Management
-                </a>
-            </li>
-        {% endif %}
-
-    </ul>
-</div>
-
+    </div>
 
     <!-- MAIN CONTENT -->
 <main id="mainContent" class="flex-fill p-4">

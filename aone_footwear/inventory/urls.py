@@ -49,7 +49,7 @@ urlpatterns = [
     path("purchase/check-bill/", check_purchase_bill, name="check_purchase_bill"),
     path("purchase/party-wise/",party_wise_purchase_view,name="party_wise_purchase"),
 
-    path("ledger/export/",export_stock_ledger_excel,name="export_stock_ledger_excel"),
+    path("ledger/export/",export_stock_ledger_csv,name="export_stock_ledger_excel"),
     # ------------------------------------------------
     # API ENDPOINTS
     # ------------------------------------------------
@@ -72,4 +72,17 @@ urlpatterns = [
     path("terms/", terms_view, name="terms"),
     path("contact/", contact_view, name="contact"),
 
+    # ------------------------------------------------
+    # STAFF MANAGEMENT
+    # ------------------------------------------------
+    path("system/staff/", staff_management_view, name="staff_management"),
+    path("system/staff/add/", staff_add_edit_view, name="staff_add"),
+    path("system/staff/edit/<int:user_id>/", staff_add_edit_view, name="staff_edit"),
+    path("system/staff/toggle/<int:user_id>/", staff_toggle_active, name="staff_toggle"),
+
+    # ------------------------------------------------
+    # EXPENSE MANAGEMENT
+    # ------------------------------------------------
+    path("system/expenses/", expense_management_view, name="expense_management"),
+    path("api/expenses/chart/", expense_chart_data, name="expense_chart_data"),
 ]

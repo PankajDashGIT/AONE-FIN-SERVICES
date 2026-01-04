@@ -1,0 +1,73 @@
+{% extends "inventory/base.html" %}
+{% load static %}
+
+{% block content %}
+<h3>Expense Management</h3>
+
+<div class="row">
+    <!-- FORM -->
+    <div class="col-md-4">
+        <form method="post" class="card p-3 mb-4">
+            {% csrf_token %}
+            <div class="mb-2">
+                <label>Category</label>
+                <select name="category" class="form-select" required>
+                    {% for key, val in categories %}
+                        <option value="{{ key }}">{{ val }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label>Description</label>
+                <input type="text" name="description" class="form-control">
+            </div>
+
+            <div class="mb-2">
+                <label>Amount</label>
+                <input type="number" step="0.01" name="amount" class="form-control" required>
+            </div>
+
+            <button class="btn btn-primary w-100">Add Expense</button>
+        </form>
+    </div>
+
+    <!-- GRAPH -->
+    <div class="col-md-8">
+        <div class="card p-3">
+            <h6>Last 7 Days Expense by Category</h6>
+            <canvas id="expenseChart" height="120"></canvas>
+        </div>
+    </div>
+</div>
+
+<hr>
+
+<h5>Recent Expenses</h5>
+<table class="table table-sm table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th class="text-end">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in expenses %}
+        <tr>
+            <td>{{ e.expense_date }}</td>
+            <td>{{ e.category }}</td>
+            <td>{{ e.description }}</td>
+            <td class="text-end">{{ e.amount }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'inventory/js/expense.js' %}"></script>
+{% endblock %}
