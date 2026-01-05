@@ -1,43 +1,231 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
+
+    <title>Invoice</title>
+
     <style>
-        body { font-size: 12px; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { border:1px solid #000; padding:4px; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            color: #000;
+        }
+
+        .invoice-box {
+            width: 100%;
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .header h2 {
+            margin: 0;
+            font-size: 20px;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            margin: 2px 0;
+            font-size: 12px;
+        }
+
+        .meta {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .meta td {
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table.items th {
+            border: 1px solid #000;
+            padding: 6px;
+            background: #f2f2f2;
+            font-size: 12px;
+        }
+
+        table.items td {
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .summary {
+            margin-top: 15px;
+            width: 100%;
+        }
+
+        .summary td {
+            padding: 4px;
+            font-size: 12px;
+        }
+
+        .summary .label {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .summary .value {
+            text-align: right;
+        }
+
+        .total-box {
+            border-top: 2px solid #000;
+            margin-top: 10px;
+            padding-top: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+
+        .print-btn {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .print-btn a {
+            padding: 8px 16px;
+            border: 1px solid #000;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        @media print {
+            .print-btn {
+                display: none;
+            }
+        }
     </style>
 </head>
+
 <body>
-<h3>AONE FOOTWEAR</h3>
-<p>Invoice #: {{ bill.bill_number }}<br>
-Date: {{ bill.bill_date|date:"d-m-Y H:i" }}</p>
 
-<table>
-    <thead>
-    <tr>
-        <th>#</th><th>Description</th><th>Qty</th><th>MRP</th>
-        <th>Price</th><th>Disc</th><th>GST</th><th>Amount</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for item in bill.items.all %}
+<div class="invoice-box">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h2>AONE FOOTWEAR</h2>
+        <p><strong>Retail Invoice</strong></p>
+    </div>
+
+    <!-- META -->
+    <table class="meta">
         <tr>
-            <td>{{ forloop.counter }}</td>
-            <td>{{ item.product }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.mrp }}</td>
-            <td>{{ item.selling_price }}</td>
-            <td>{{ item.discount_amount }}</td>
-            <td>{{ item.gst_amount }}</td>
-            <td>{{ item.line_total }}</td>
+            <td>
+                <strong>Invoice No:</strong> {{ bill.bill_number }}<br>
+                <strong>Date:</strong> {{ bill.bill_date|date:"d-m-Y H:i" }}
+            </td>
+            <td class="text-right">
+                <strong>Payment Mode:</strong> {{ bill.payment_mode }}<br>
+                <strong>Printed By:</strong> {{ bill.created_by }}
+            </td>
         </tr>
-    {% endfor %}
-    </tbody>
-</table>
+    </table>
 
-<p>Total Qty: {{ bill.total_qty }}<br>
-Subtotal: {{ bill.total_amount }}<br>
-CGST: {{ bill.cgst }} &nbsp;&nbsp; SGST: {{ bill.sgst }}</p>
+    <!-- ITEMS -->
+    <table class="items">
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th class="text-center">Qty</th>
+            <th class="text-right">MRP</th>
+            <th class="text-right">Price</th>
+            <th class="text-right">Disc</th>
+            <th class="text-right">GST</th>
+            <th class="text-right">Amount</th>
+        </tr>
+        </thead>
+
+        <tbody>
+        {% for item in bill.items.all %}
+        <tr>
+            <td class="text-center">{{ forloop.counter }}</td>
+            <td>{{ item.product }}</td>
+            <td class="text-center">{{ item.quantity }}</td>
+            <td class="text-right">{{ item.mrp }}</td>
+            <td class="text-right">{{ item.selling_price }}</td>
+            <td class="text-right">{{ item.discount_amount }}</td>
+            <td class="text-right">{{ item.gst_amount }}</td>
+            <td class="text-right">{{ item.line_total }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- SUMMARY -->
+    <table class="summary">
+        <tr>
+            <td class="label">Total Quantity :</td>
+            <td class="value">{{ bill.total_qty }}</td>
+        </tr>
+        <tr>
+            <td class="label">Subtotal (GST Inclusive) :</td>
+            <td class="value">₹ {{ bill.total_amount }}</td>
+        </tr>
+        <tr>
+            <td class="label">CGST :</td>
+            <td class="value">₹ {{ bill.cgst }}</td>
+        </tr>
+        <tr>
+            <td class="label">SGST :</td>
+            <td class="value">₹ {{ bill.sgst }}</td>
+        </tr>
+    </table>
+
+    <div class="total-box text-right">
+        Grand Total : ₹ {{ bill.total_amount }}
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <p><strong>Thank you for shopping with us!</strong></p>
+        <p>Prices are inclusive of GST</p>
+        <p>This is a computer generated invoice</p>
+    </div>
+
+    <!-- PRINT -->
+    <div class="print-btn">
+        <a href="{% url 'invoice-pdf' bill.id %}" target="_blank">
+            Print Invoice
+        </a>
+    </div>
+
+</div>
+
 </body>
 </html>

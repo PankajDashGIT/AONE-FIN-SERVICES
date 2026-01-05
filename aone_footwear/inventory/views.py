@@ -3,6 +3,7 @@ from django.views.decorators.cache import cache_page
 from django.db.models.functions import TruncMonth
 import csv
 import io
+from xhtml2pdf import pisa
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -302,6 +303,15 @@ def post_login_redirect(request):
     return redirect("sales_dashboard")
 
 
+@login_required
+def invoice_view(request, bill_id):
+    bill = get_object_or_404(SalesBill, pk=bill_id)
+    return render(request, "inventory/invoice.html", {
+        "bill": bill
+    })
+
+
+
 # ---------- Billing / POS ----------
 
 @login_required
@@ -309,171 +319,203 @@ def post_login_redirect(request):
 @transaction.atomic
 def billing_view(request):
     """
-    GET: Render billing page.
-    POST: Validate items (read-only), then write SalesBill, SalesItems and update Stock within the same transaction.
-    Uses decorator @transaction.atomic so the entire view is transactional.
-    Validation failures return JSON (or render) before any writes occur.
+    GET  : Render billing page
+    POST : Validate → Create SalesBill & SalesItems → Update Stock
+           → Redirect to Invoice HTML preview
+    GST is INCLUDED in selling price (not added on top)
     """
-    # --- GET: render billing page ---
-    if request.method == 'GET':
-        brands = Brand.objects.all().order_by('name')
+
+    # ---------------- GET ----------------
+    if request.method == "GET":
+        brands = Brand.objects.all().order_by("name")
         bill_form = SalesBillForm()
-        data = {'stock_qty': 0}
-        return render(request, 'inventory/billing.html', {'brands': brands, 'bill_form': bill_form, 'data': data})
+        return render(
+            request,
+            "inventory/billing.html",
+            {"brands": brands, "bill_form": bill_form},
+        )
 
-    # --- Only POST beyond this point ---
-    if request.method != 'POST':
-        return HttpResponseBadRequest("Unsupported HTTP method.")
-
-    # Parse items_json
-    items_json = request.POST.get('items_json') or request.POST.get('items') or None
+    # ---------------- POST ----------------
+    items_json = request.POST.get("items_json")
     if not items_json:
-        return JsonResponse({'success': False, 'error': 'No items supplied.'}, status=400)
+        return JsonResponse({"success": False, "error": "No items supplied"}, status=400)
 
     try:
         items = json.loads(items_json)
     except Exception:
-        return JsonResponse({'success': False, 'error': 'Invalid items_json.'}, status=400)
+        return JsonResponse({"success": False, "error": "Invalid items_json"}, status=400)
 
-    if not isinstance(items, list) or len(items) == 0:
-        return JsonResponse({'success': False, 'error': 'At least one item required.'}, status=400)
+    if not isinstance(items, list) or not items:
+        return JsonResponse({"success": False, "error": "At least one item required"}, status=400)
 
-    # Optionally resolve/create customer (lightweight)
+    # ---------------- CUSTOMER ----------------
     customer = None
-    customer_name = request.POST.get('customer_name') or request.POST.get('customer')
-    customer_mobile = request.POST.get('customer_mobile')
+    customer_name = request.POST.get("customer_name")
+    customer_mobile = request.POST.get("customer_mobile")
+
     if customer_name:
-        try:
-            if customer_mobile:
-                customer = Customer.objects.filter(name=customer_name, phone=customer_mobile).first()
-            if not customer:
-                # create a minimal customer record if not found
-                customer = Customer.objects.create(name=customer_name, phone=customer_mobile or '')
-        except Exception:
-            customer = None
+        customer = Customer.objects.filter(
+            name=customer_name, phone=customer_mobile
+        ).first()
+        if not customer:
+            customer = Customer.objects.create(
+                name=customer_name,
+                phone=customer_mobile or "",
+            )
 
-    payment_mode = request.POST.get('payment_type') or request.POST.get('payment_mode') or 'CASH'
+    payment_mode = request.POST.get("payment_type", "CASH")
 
-    # --- PRE-VALIDATION (reads only) ---
+    # ---------------- PRE-VALIDATION ----------------
     validated_items = []
-    for idx, it in enumerate(items):
+
+    for idx, it in enumerate(items, start=1):
         try:
-            product_id = int(it.get('product_id') or it.get('product') or it.get('id'))
-            qty = int(it.get('qty', 0))
-            price_unit = to_decimal(it.get('price', 0))
-            gst_percent_input = it.get('gst_percent') if it.get('gst_percent') is not None else it.get('gst')
+            product_id = int(it["product_id"])
+            qty = int(it["qty"])
+            price_unit = to_decimal(it["price"])
+            gst_percent = to_decimal(it.get("gst_percent") or 0)
         except Exception:
-            return JsonResponse({'success': False, 'error': f'Invalid data for item #{idx + 1}.'}, status=400)
+            return JsonResponse(
+                {"success": False, "error": f"Invalid data in item #{idx}"},
+                status=400,
+            )
 
         if qty <= 0:
-            return JsonResponse({'success': False, 'error': f'Quantity must be positive for item #{idx + 1}.'},
-                                status=400)
+            return JsonResponse(
+                {"success": False, "error": f"Invalid quantity in item #{idx}"},
+                status=400,
+            )
 
-        # Fetch product (read-only)
         try:
-            product = Product.objects.select_related('stock').get(pk=product_id)
+            product = Product.objects.select_related("stock").get(pk=product_id)
         except Product.DoesNotExist:
-            return JsonResponse({'success': False, 'error': f'Product id {product_id} not found (item #{idx + 1}).'},
-                                status=400)
+            return JsonResponse(
+                {"success": False, "error": f"Product not found (item #{idx})"},
+                status=400,
+            )
 
-        # Use DB MRP to validate discount limits
-        mrp_db = to_decimal(product.mrp)
-        gst_percent = to_decimal(gst_percent_input if gst_percent_input is not None else product.gst_percent)
+        # Stock check (best effort)
+        if product.stock.quantity < qty:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f"Insufficient stock for {product}. Available {product.stock.quantity}",
+                },
+                status=400,
+            )
 
-        # Pre-check stock availability (best effort)
-        try:
-            stock = product.stock
-            if stock.quantity < qty:
-                return JsonResponse(
-                    {'success': False, 'error': f'Not enough stock for product {product}. Available {stock.quantity}.'},
-                    status=400)
-        except Stock.DoesNotExist:
-            return JsonResponse({'success': False, 'error': f'No stock record for product {product}.'}, status=400)
+        mrp = to_decimal(product.mrp)
 
-        # Validate manual discount: (mrp - price_unit) <= 15% MRP
-        discount_per_unit = (mrp_db - price_unit)
-        max_allowed = (mrp_db * Decimal('0.15')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Manual discount validation (15% of MRP)
+        discount_per_unit = mrp - price_unit
+        max_allowed = (mrp * Decimal("0.15")).quantize(Decimal("0.01"))
         if discount_per_unit > max_allowed:
-            return JsonResponse({'success': False,
-                                 'error': f'Manual discount on product {product} exceeds 15% of MRP (max ₹{max_allowed}).'},
-                                status=400)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": f"Discount exceeds 15% of MRP for {product}",
+                },
+                status=400,
+            )
 
         validated_items.append(
-            {'product': product, 'qty': qty, 'mrp': mrp_db, 'price_unit': price_unit, 'gst_percent': gst_percent})
+            {
+                "product": product,
+                "qty": qty,
+                "mrp": mrp,
+                "price_unit": price_unit,
+                "gst_percent": gst_percent,
+            }
+        )
 
-    # --- ALL VALIDATED: perform writes (still inside @transaction.atomic) ---
-    bill_number = timezone.now().strftime('B%Y%m%d%H%M%S')
-    try:
-        # Create sales bill
-        sales_bill = SalesBill.objects.create(bill_number=bill_number, bill_date=timezone.now(), customer=customer,
-            payment_mode=payment_mode, total_qty=0, total_amount=Decimal('0.00'), total_discount=Decimal('0.00'),
-            total_gst=Decimal('0.00'), cgst=Decimal('0.00'), sgst=Decimal('0.00'), created_by=request.user, )
+    # ---------------- CREATE BILL ----------------
+    bill_number = timezone.now().strftime("B%Y%m%d%H%M%S")
 
-        total_qty = 0
-        total_amount = Decimal('0.00')
-        total_gst = Decimal('0.00')
-        total_discount = Decimal('0.00')
+    sales_bill = SalesBill.objects.create(
+        bill_number=bill_number,
+        bill_date=timezone.now(),
+        customer=customer,
+        payment_mode=payment_mode,
+        total_qty=0,
+        total_amount=Decimal("0.00"),
+        total_discount=Decimal("0.00"),
+        total_gst=Decimal("0.00"),
+        cgst=Decimal("0.00"),
+        sgst=Decimal("0.00"),
+        created_by=request.user,
+    )
 
-        # For each validated item, lock its stock row and update
-        for item in validated_items:
-            product = item['product']
-            qty = item['qty']
-            mrp = item['mrp']
-            price_unit = item['price_unit']
-            gst_percent = item['gst_percent']
+    total_qty = 0
+    total_amount = Decimal("0.00")
+    total_gst = Decimal("0.00")
+    total_discount = Decimal("0.00")
 
-            # Lock stock row and re-check availability
-            stock = Stock.objects.select_for_update().get(product=product)
-            if stock.quantity < qty:
-                # Raising an exception will rollback the atomic transaction
-                raise ValueError(f'Not enough stock for product {product}. Available {stock.quantity}.')
+    # ---------------- WRITE ITEMS + UPDATE STOCK ----------------
+    for item in validated_items:
+        product = item["product"]
+        qty = item["qty"]
+        mrp = item["mrp"]
+        price_unit = item["price_unit"]
+        gst_percent = item["gst_percent"]
 
-            discount_per_unit = (mrp - price_unit)
-            line_discount_amount = (discount_per_unit * qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        stock = Stock.objects.select_for_update().get(product=product)
+        if stock.quantity < qty:
+            raise ValueError(f"Stock changed for {product}, retry billing")
 
-            line_gst_amount = (price_unit * qty * gst_percent / Decimal('100.00')).quantize(Decimal('0.01'),
-                                                                                            rounding=ROUND_HALF_UP)
-            line_total = (price_unit * qty + line_gst_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Discount
+        discount_per_unit = mrp - price_unit
+        line_discount = (discount_per_unit * qty).quantize(Decimal("0.01"))
 
-            SalesItem.objects.create(sales_bill=sales_bill, product=product, quantity=qty, mrp=mrp,
-                selling_price=price_unit, discount_percent=((discount_per_unit / mrp) * Decimal('100.00')).quantize(
-                    Decimal('0.01')) if mrp > 0 else Decimal('0.00'), discount_amount=line_discount_amount,
-                gst_percent=gst_percent, gst_amount=line_gst_amount, line_total=line_total, )
+        # GST INCLUDED price logic
+        line_total = (price_unit * qty).quantize(Decimal("0.01"))
+        base_amount = (
+            line_total * Decimal("100.00") / (Decimal("100.00") + gst_percent)
+        ).quantize(Decimal("0.01"))
+        line_gst = (line_total - base_amount).quantize(Decimal("0.01"))
 
-            # Decrement stock and save
-            stock.quantity -= qty
-            stock.save()
+        SalesItem.objects.create(
+            sales_bill=sales_bill,
+            product=product,
+            quantity=qty,
+            mrp=mrp,
+            selling_price=price_unit,
+            discount_percent=(
+                (discount_per_unit / mrp) * Decimal("100.00")
+            ).quantize(Decimal("0.01"))
+            if mrp > 0
+            else Decimal("0.00"),
+            discount_amount=line_discount,
+            gst_percent=gst_percent,
+            gst_amount=line_gst,
+            line_total=line_total,
+        )
 
-            total_qty += qty
-            total_amount += line_total
-            total_gst += line_gst_amount
-            total_discount += line_discount_amount
+        stock.quantity -= qty
+        stock.save()
 
-        # Finalize totals and save the sales bill
-        sales_bill.total_qty = total_qty
-        sales_bill.total_amount = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        sales_bill.total_gst = total_gst.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        sales_bill.total_discount = total_discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        sales_bill.cgst = (sales_bill.total_gst / Decimal('2.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        sales_bill.sgst = (sales_bill.total_gst / Decimal('2.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        sales_bill.save()
+        total_qty += qty
+        total_amount += line_total
+        total_gst += line_gst
+        total_discount += line_discount
 
-    except ValueError as ve:
-        # A validation or stock re-check failed; rollback happens automatically because we're inside atomic()
-        return JsonResponse({'success': False, 'error': str(ve)}, status=400)
-    except Exception:
-        # Unexpected failure: rollback automatically
-        return JsonResponse({'success': False, 'error': 'Server error while creating bill.'}, status=500)
+    # ---------------- FINALIZE BILL ----------------
+    sales_bill.total_qty = total_qty
+    sales_bill.total_amount = total_amount
+    sales_bill.total_gst = total_gst
+    sales_bill.total_discount = total_discount
+    sales_bill.cgst = (total_gst / Decimal("2.00")).quantize(Decimal("0.01"))
+    sales_bill.sgst = (total_gst / Decimal("2.00")).quantize(Decimal("0.01"))
+    sales_bill.save()
 
-    # Build invoice URL and respond (AJAX vs normal)
-    invoice_url = reverse('invoice-pdf', args=[sales_bill.pk])
-    invoice_url_with_download = invoice_url
-    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.META.get(
-        'HTTP_ACCEPT') == 'application/json'
+    # ---------------- REDIRECT TO INVOICE PREVIEW ----------------
+    invoice_url = reverse("invoice_view", args=[sales_bill.id])
+
+    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
     if is_ajax:
-        return JsonResponse({'success': True, 'invoice_url': invoice_url_with_download})
-    else:
-        return HttpResponseRedirect(invoice_url_with_download)
+        return JsonResponse({"success": True, "invoice_url": invoice_url})
+
+    return HttpResponseRedirect(invoice_url)
+
 
 
 def api_product_info(request):
@@ -492,99 +534,23 @@ def api_product_info(request):
 
 
 # ---------- Invoice PDF ----------
-
 @login_required
 def generate_invoice_pdf(request, bill_id):
-    bill = get_object_or_404(SalesBill, id=bill_id)
-    items = SalesItem.objects.filter(sales_bill=bill)
+    bill = get_object_or_404(SalesBill, pk=bill_id)
 
-    buffer = io.BytesIO()
-    pagesize = A4
-    page_width, page_height = A4
+    html = render_to_string(
+        "inventory/invoice.html",
+        {"bill": bill}
+    )
 
-    pdf = canvas.Canvas(buffer, pagesize=pagesize)
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'inline; filename="Invoice_{bill.bill_number}.pdf"'
+    )
 
-    y = page_height - 30
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(30, y, "AONE FOOTWEAR")
-    y -= 15
+    pisa.CreatePDF(html, dest=response)
+    return response
 
-    pdf.setFont("Helvetica", 10)
-    pdf.drawString(30, y, "Main Market, Bhubaneswar, Odisha")
-    y -= 12
-    pdf.drawString(30, y, "Phone: +91-9876543210")
-    y -= 20
-
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(30, y, f"Invoice No: {bill.bill_number}")
-    y -= 12
-    pdf.drawString(30, y, f"Date: {bill.bill_date.strftime('%d-%m-%Y %H:%M')}")
-    y -= 20
-
-    pdf.line(20, y, page_width - 20, y)
-    y -= 10
-
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(25, y, "Item")
-    pdf.drawString(page_width - 160, y, "Qty")
-    pdf.drawString(page_width - 120, y, "Rate")
-    pdf.drawString(page_width - 70, y, "Amount")
-    y -= 12
-
-    pdf.line(20, y, page_width - 20, y)
-    y -= 10
-
-    pdf.setFont("Helvetica", 9)
-
-    total_amount = 0
-    tax_total = 0
-
-    for item in items:
-        name = f"{item.product.brand.name} {item.product.section.name} {item.product.size.value}"
-        line_total = float(item.quantity) * float(item.selling_price)
-        total_amount += line_total
-
-        gst_rate = float(item.gst_percent or 0)
-        gst_amount = (line_total * gst_rate) / 100
-        tax_total += gst_amount
-
-        pdf.drawString(25, y, name[:25])
-        pdf.drawString(page_width - 160, y, str(item.quantity))
-        pdf.drawString(page_width - 120, y, f"{item.selling_price:.2f}")
-        pdf.drawString(page_width - 70, y, f"{line_total:.2f}")
-        y -= 12
-
-        if y < 50:
-            pdf.showPage()
-            y = page_height - 40
-            pdf.setFont("Helvetica", 9)
-
-    y -= 15
-    pdf.line(20, y, page_width - 20, y)
-    y -= 12
-
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(page_width - 150, y, "Sub Total:")
-    pdf.drawString(page_width - 70, y, f"{total_amount:.2f}")
-    y -= 12
-
-    pdf.drawString(page_width - 150, y, "GST:")
-    pdf.drawString(page_width - 70, y, f"{tax_total:.2f}")
-    y -= 12
-
-    grand_total = total_amount + tax_total
-    pdf.drawString(page_width - 150, y, "Grand Total:")
-    pdf.drawString(page_width - 70, y, f"{grand_total:.2f}")
-    y -= 25
-
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(30, y, "Thank you for shopping with AONE FOOTWEAR!")
-
-    pdf.showPage()
-    pdf.save()
-
-    buffer.seek(0)
-    return FileResponse(buffer, as_attachment=True, filename=f"Invoice_{bill.bill_number}.pdf")
 
 
 # ---------- Stock Ledger ----------

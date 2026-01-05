@@ -36,6 +36,7 @@ urlpatterns = [
     # INVOICE
     # ------------------------------------------------
     path('billing/submit/', billing_view, name='billing-submit'),
+    path("invoice/<int:bill_id>/", invoice_view, name="invoice_view"),
     path("invoice/<int:bill_id>/pdf/", generate_invoice_pdf, name="invoice-pdf"),
 
     # ------------------------------------------------
